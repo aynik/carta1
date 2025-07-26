@@ -18,6 +18,9 @@ import {
   SAMPLE_RATE,
   BFU_FREQUENCIES,
   PSYMODEL_MIN_POWER_DB,
+  PSYMODEL_CB_FREQ_INDICES,
+  INTERPOLATION_COMPENSATION_FACTOR,
+  PSYMODEL_FFT_SIZE,
 } from '../core/constants.js'
 
 /**
@@ -32,10 +35,10 @@ export function allocateBits(psychoResults, bfuData, bfuSizes, maxBfuCount) {
   // Calculate signal energy for each BFU
   const signalEnergyDb = calculateBfuEnergy(bfuData, bfuSizes, maxBfuCount)
 
-  // Map psychoacoustic masking threshold to BFUs
-  const maskingThreshold =
-    psychoResults.maskingThreshold || psychoResults.globalThreshold
-  const maskThresholdDb = mapThresholdToBfus(maskingThreshold)
+  // Interpolate critical band thresholds to BFUs
+  const maskThresholdDb = interpolateCriticalBandsToBfus(
+    psychoResults.criticalBandThresholds
+  )
 
   // Calculate Signal-to-Mask Ratios
   const smrValues = calculateSMR(signalEnergyDb, maskThresholdDb, maxBfuCount)
@@ -99,25 +102,55 @@ function calculateBfuEnergy(bfuData, bfuSizes, bfuCount) {
 }
 
 /**
- * Map frequency-domain masking threshold to BFU indices
- * @param {Float32Array} globalThreshold - Frequency-domain masking threshold
+ * Interpolate critical band thresholds directly to BFU frequencies
+ * @param {Float32Array} criticalBandThresholds - Critical band thresholds
  * @returns {Float32Array} Masking threshold per BFU
  */
-function mapThresholdToBfus(globalThreshold) {
+function interpolateCriticalBandsToBfus(criticalBandThresholds) {
   const maskThresholdPerBfu = new Float32Array(NUM_BFUS)
   maskThresholdPerBfu.fill(PSYMODEL_MIN_POWER_DB)
 
-  // Calculate frequency resolution
-  const fftSize = (globalThreshold.length - 1) * 2
-  const freqPerBin = SAMPLE_RATE / fftSize
+  const freqPerBin = SAMPLE_RATE / PSYMODEL_FFT_SIZE
 
-  // Map each BFU's center frequency to nearest FFT bin
+  // Get frequency indices for critical bands (from constants)
+  const freqIndices = PSYMODEL_CB_FREQ_INDICES
+
   for (let i = 0; i < NUM_BFUS; i++) {
     const bfuFreq = BFU_FREQUENCIES[i]
+    // Convert BFU frequency to FFT bin index (rounded like current implementation)
     const fftBinIndex = Math.round(bfuFreq / freqPerBin)
 
-    if (fftBinIndex >= 0 && fftBinIndex < globalThreshold.length) {
-      maskThresholdPerBfu[i] = globalThreshold[fftBinIndex]
+    // Find which critical bands surround this FFT bin
+    let bandIndex = 0
+    while (
+      bandIndex < freqIndices.length - 1 &&
+      freqIndices[bandIndex + 1] < fftBinIndex
+    ) {
+      bandIndex++
+    }
+
+    // Apply same interpolation logic as interpolateThresholdCompensated
+    if (fftBinIndex <= freqIndices[0]) {
+      maskThresholdPerBfu[i] = criticalBandThresholds[0]
+    } else if (fftBinIndex >= freqIndices[freqIndices.length - 1]) {
+      maskThresholdPerBfu[i] =
+        criticalBandThresholds[criticalBandThresholds.length - 1]
+    } else {
+      const x0 = freqIndices[bandIndex]
+      const x1 = freqIndices[bandIndex + 1]
+      const y0 = criticalBandThresholds[bandIndex]
+      const y1 = criticalBandThresholds[bandIndex + 1]
+      const bandWidth = x1 - x0
+
+      if (bandWidth > 0) {
+        const t = (fftBinIndex - x0) / bandWidth
+        const interpolated = y0 + (y1 - y0) * t
+        const compensation =
+          Math.abs(y1 - y0) * INTERPOLATION_COMPENSATION_FACTOR
+        maskThresholdPerBfu[i] = interpolated + compensation
+      } else {
+        maskThresholdPerBfu[i] = y0
+      }
     }
   }
 

@@ -116,6 +116,9 @@ export const QMF_ODD = (() => {
   return odd
 })()
 
+// Bit allocation
+export const INTERPOLATION_COMPENSATION_FACTOR = 0.25
+
 // Quantization
 export const MAX_WORD_LENGTH_INDEX = 15
 export const WORD_LENGTH_BITS = new Int32Array([

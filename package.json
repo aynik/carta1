@@ -1,6 +1,6 @@
 {
   "name": "carta1",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "An ATRAC1 audio codec implementation in JS",
   "type": "module",
   "main": "codec/index.js",

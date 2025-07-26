@@ -9,12 +9,12 @@ import {
   PSYMODEL_MIN_POWER_DB,
   PSYMODEL_NOT_EXAMINED,
   PSYMODEL_TONAL,
+  PSYMODEL_FFT_SIZE,
   PSYMODEL_NON_TONAL,
   PSYMODEL_IRRELEVANT,
   PSYMODEL_LOG10_FACTOR,
   PSYMODEL_POW10_FACTOR,
   PSYMODEL_CRITICAL_BANDS,
-  PSYMODEL_CB_FREQ_INDICES,
   PSYMODEL_THRESHOLD_TABLE,
   PSYMODEL_FREQ_TO_CB_MAP,
 } from '../core/constants.js'
@@ -42,45 +42,33 @@ export function fromDb(db) {
 /**
  * Perform complete psychoacoustic analysis on MDCT coefficients
  * @param {Float32Array} mdctCoeffs - MDCT coefficients (512 samples)
- * @param {number} targetSize - Target FFT size for analysis
- * @param {Object} psychoBuffers - Reusable buffers for performance
+ * @param {number} normalizationDb - Target maximum power level in dB
  * @returns {Object} Analysis results including PSD, maskers, and thresholds
  */
-export function psychoAnalysis(
-  mdctCoeffs,
-  targetSize,
-  psychoBuffers,
-  normalizationDb
-) {
-  const fftScale = targetSize / 512
+export function psychoAnalysis(mdctCoeffs, normalizationDb) {
+  const fftScale = PSYMODEL_FFT_SIZE / 512
 
   // Apply frequency band reversal correction
   const correctedCoeffs = applyMdctCorrection(mdctCoeffs)
 
   // Calculate power spectral density
-  const psd = calculatePSDFromMDCT(correctedCoeffs, targetSize, normalizationDb)
+  const psd = calculatePSDFromMDCT(correctedCoeffs, normalizationDb)
 
   // Find tonal and non-tonal maskers
-  const { flags, tonalMaskers, nonTonalMaskers } = findAllMaskers(
-    psd,
-    psychoBuffers,
-    fftScale
-  )
+  const { flags, tonalMaskers, nonTonalMaskers } = findAllMaskers(psd, fftScale)
 
-  // Calculate global masking threshold
-  const globalThreshold = calculateGlobalThreshold(
+  // Calculate critical band masking thresholds
+  const criticalBandThresholds = calculateCriticalBandThresholds(
     psd,
     tonalMaskers,
-    nonTonalMaskers,
-    psychoBuffers.threshold,
-    targetSize
+    nonTonalMaskers
   )
 
   return {
     psd,
     tonalMaskers,
     nonTonalMaskers,
-    globalThreshold,
+    criticalBandThresholds,
     flags,
   }
 }
@@ -112,11 +100,10 @@ function applyMdctCorrection(mdctCoeffs) {
 /**
  * Calculate Power Spectral Density from MDCT coefficients
  * @param {Float32Array} mdctCoeffs - MDCT coefficients
- * @param {number} targetSize - Target FFT size
  * @returns {Float32Array} Power spectral density in dB
  */
-function calculatePSDFromMDCT(mdctCoeffs, targetSize, normalizationDb) {
-  const halfTargetSize = targetSize / 2
+function calculatePSDFromMDCT(mdctCoeffs, normalizationDb) {
+  const halfTargetSize = PSYMODEL_FFT_SIZE / 2
   const psd = new Float32Array(halfTargetSize + 1)
 
   // Calculate power values and find maximum
@@ -132,36 +119,23 @@ function calculatePSDFromMDCT(mdctCoeffs, targetSize, normalizationDb) {
   const normFactor = 1 / (maxPower || 1)
   let maxPsdValue = -Infinity
 
-  if (targetSize === 512) {
-    // Direct averaging for same size
-    for (let i = 0; i < 256; i++) {
-      const avgPower = (powers[i * 2] + powers[i * 2 + 1]) * 0.5 * normFactor
-      psd[i] = avgPower > 0 ? toDb(avgPower) : PSYMODEL_MIN_POWER_DB
-      maxPsdValue = Math.max(maxPsdValue, psd[i])
-    }
-    psd[256] = psd[255]
-    // Check if last value is the max
-    maxPsdValue = Math.max(maxPsdValue, psd[256])
-  } else {
-    // Interpolate for different sizes
-    const scaleFactor = 512 / targetSize
+  // Interpolate for different sizes
+  const scaleFactor = 512 / PSYMODEL_FFT_SIZE
 
-    for (let i = 0; i <= halfTargetSize; i++) {
-      const srcIdx = i * scaleFactor
-      const srcIdxInt = Math.floor(srcIdx)
-      const frac = srcIdx - srcIdxInt
+  for (let i = 0; i <= halfTargetSize; i++) {
+    const srcIdx = i * scaleFactor
+    const srcIdxInt = Math.floor(srcIdx)
+    const frac = srcIdx - srcIdxInt
 
-      const power =
-        srcIdxInt < 511
-          ? powers[srcIdxInt] * (1 - frac) + powers[srcIdxInt + 1] * frac
-          : powers[511]
+    const power =
+      srcIdxInt < 511
+        ? powers[srcIdxInt] * (1 - frac) + powers[srcIdxInt + 1] * frac
+        : powers[511]
 
-      const normalizedPower = power * normFactor
-      psd[i] =
-        normalizedPower > 0 ? toDb(normalizedPower) : PSYMODEL_MIN_POWER_DB
+    const normalizedPower = power * normFactor
+    psd[i] = normalizedPower > 0 ? toDb(normalizedPower) : PSYMODEL_MIN_POWER_DB
 
-      maxPsdValue = Math.max(maxPsdValue, psd[i])
-    }
+    maxPsdValue = Math.max(maxPsdValue, psd[i])
   }
 
   // Apply normalization to target maximum
@@ -179,13 +153,12 @@ function calculatePSDFromMDCT(mdctCoeffs, targetSize, normalizationDb) {
 /**
  * Find all maskers (tonal and non-tonal) in the spectrum
  * @param {Float32Array} psd - Power spectral density
- * @param {Object} psychoBuffers - Reusable buffers
  * @param {number} fftScale - FFT scaling factor
  * @returns {Object} Flags array and lists of maskers
  */
-function findAllMaskers(psd, psychoBuffers, fftScale) {
+function findAllMaskers(psd, fftScale) {
   // Initialize flags
-  const flags = psychoBuffers.flags
+  const flags = new Uint8Array(PSYMODEL_FFT_SIZE / 2)
   flags.fill(PSYMODEL_NOT_EXAMINED)
 
   // Find tonal maskers first
@@ -401,52 +374,18 @@ function decimateMaskers(flags, tonalList, nonTonalList) {
 }
 
 /**
- * Calculate global masking threshold
+ * Calculate critical band masking thresholds
  * @param {Float32Array} psd - Power spectral density
  * @param {Array} tonalMaskers - List of tonal maskers
  * @param {Array} nonTonalMaskers - List of non-tonal maskers
- * @param {Float32Array} thresholdBuffer - Output buffer for threshold
- * @param {number} fftSize - FFT size
- * @returns {Float32Array} Global masking threshold
+ * @returns {Float32Array} Critical band thresholds
  */
-function calculateGlobalThreshold(
-  psd,
-  tonalMaskers,
-  nonTonalMaskers,
-  thresholdBuffer,
-  fftSize
-) {
+function calculateCriticalBandThresholds(psd, tonalMaskers, nonTonalMaskers) {
   const criticalBandThresholds = new Float32Array(
     PSYMODEL_CRITICAL_BANDS.length
   )
 
   // Calculate threshold for each critical band
-  calculateCriticalBandThresholds(
-    psd,
-    tonalMaskers,
-    nonTonalMaskers,
-    criticalBandThresholds
-  )
-
-  // Interpolate to full spectrum with compensation
-  interpolateThresholdCompensated(
-    criticalBandThresholds,
-    thresholdBuffer,
-    fftSize
-  )
-
-  return thresholdBuffer
-}
-
-/**
- * Calculate masking threshold for each critical band
- */
-function calculateCriticalBandThresholds(
-  psd,
-  tonalMaskers,
-  nonTonalMaskers,
-  output
-) {
   for (let i = 0; i < PSYMODEL_CRITICAL_BANDS.length; i++) {
     const bandData = PSYMODEL_THRESHOLD_TABLE[PSYMODEL_CRITICAL_BANDS[i]]
     const maskedBark = bandData[1]
@@ -470,8 +409,10 @@ function calculateCriticalBandThresholds(
       false // isTonal
     )
 
-    output[i] = toDb(summedEnergy)
+    criticalBandThresholds[i] = toDb(summedEnergy)
   }
+
+  return criticalBandThresholds
 }
 
 /**
@@ -537,53 +478,4 @@ function calculateMaskingLevel(
   }
 
   return maskerSpl + tonalOffset + maskingFunction
-}
-
-/**
- * Interpolate critical band thresholds to full spectrum
- * @param {Float32Array} cbThresholds - Critical band thresholds
- * @param {Float32Array} output - Output buffer
- * @param {number} fftSize - FFT size
- */
-function interpolateThresholdCompensated(cbThresholds, output, fftSize) {
-  const COMPENSATION_FACTOR = 0.25
-  const halfSize = fftSize / 2
-
-  // Get frequency indices for critical bands
-  const freqIndices = PSYMODEL_CB_FREQ_INDICES
-
-  let bandIndex = 0
-  for (let i = 0; i <= halfSize; i++) {
-    if (i <= freqIndices[0]) {
-      // Before first critical band
-      output[i] = cbThresholds[0]
-    } else if (i >= freqIndices[freqIndices.length - 1]) {
-      // After last critical band
-      output[i] = cbThresholds[cbThresholds.length - 1]
-    } else {
-      // Find current band
-      while (
-        bandIndex < freqIndices.length - 1 &&
-        freqIndices[bandIndex + 1] < i
-      ) {
-        bandIndex++
-      }
-
-      // Interpolate with compensation
-      const x0 = freqIndices[bandIndex]
-      const x1 = freqIndices[bandIndex + 1]
-      const y0 = cbThresholds[bandIndex]
-      const y1 = cbThresholds[bandIndex + 1]
-      const bandWidth = x1 - x0
-
-      if (bandWidth > 0) {
-        const t = (i - x0) / bandWidth
-        const interpolated = y0 + (y1 - y0) * t
-        const compensation = Math.abs(y1 - y0) * COMPENSATION_FACTOR
-        output[i] = interpolated + compensation
-      } else {
-        output[i] = y0
-      }
-    }
-  }
 }

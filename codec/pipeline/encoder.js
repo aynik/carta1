@@ -31,7 +31,6 @@ import {
   FFT_SIZE_LOW,
   FFT_SIZE_MID,
   FFT_SIZE_HIGH,
-  PSYMODEL_FFT_SIZE,
   MDCT_SIZE_SHORT,
   MDCT_SIZE_MID,
   MDCT_SIZE_LONG,
@@ -300,12 +299,7 @@ export function quantizationStage(context) {
       bufferPool.bfuData
     )
 
-    const psychoResults = psychoAnalysis(
-      coefficients,
-      PSYMODEL_FFT_SIZE,
-      bufferPool.psychoAnalysis,
-      options.normalizationDb
-    )
+    const psychoResults = psychoAnalysis(coefficients, options.normalizationDb)
     const { bfuCount: selectedBfuCount, allocation } = allocateBits(
       psychoResults,
       bfuData,

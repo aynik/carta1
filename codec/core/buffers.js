@@ -7,7 +7,6 @@ import {
   MAX_BFU_SIZE,
   QMF_DELAY,
   QMF_HIGH_BAND_DELAY,
-  PSYMODEL_FFT_SIZE,
 } from './constants.js'
 
 export class BufferPool {
@@ -82,12 +81,6 @@ export class BufferPool {
       32: new Float32Array(32),
       128: new Float32Array(128),
       256: new Float32Array(256),
-    }
-
-    // Psychoacoustic model buffers
-    this.psychoAnalysis = {
-      flags: new Uint8Array(PSYMODEL_FFT_SIZE / 2),
-      threshold: new Float32Array(PSYMODEL_FFT_SIZE / 2 + 1),
     }
 
     // Bit allocation buffers

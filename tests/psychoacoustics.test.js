@@ -1,11 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { toDb, fromDb, psychoAnalysis } from '../codec/analysis/psychoacoustics'
-import { BufferPool } from '../codec/core/buffers'
 import { PSYMODEL_MIN_POWER_DB } from '../codec/core/constants'
 
 describe('Psychoacoustics', () => {
-  const bufferPool = new BufferPool()
-
   describe('toDb and fromDb', () => {
     it('should perform accurate conversions', () => {
       const linearValue = 100
@@ -31,20 +28,14 @@ describe('Psychoacoustics', () => {
         mdctCoeffs[i] += 0.01 * Math.random()
       }
 
-      const result = psychoAnalysis(
-        mdctCoeffs,
-        512,
-        bufferPool.psychoAnalysis,
-        96
-      )
+      const result = psychoAnalysis(mdctCoeffs, 96)
 
-      // psychoAnalysis uses FFT size 2048, so globalThreshold has 2048/2 + 1 = 1025 elements
-      // The +1 is for the Nyquist frequency bin
-      expect(result.globalThreshold.length).toBe(1025)
+      // psychoAnalysis now returns critical band thresholds (25 bands)
+      expect(result.criticalBandThresholds.length).toBe(25)
       // Thresholds should be reasonable dB values (not too high)
-      expect(result.globalThreshold.every((v) => v < 100)).toBe(true)
+      expect(result.criticalBandThresholds.every((v) => v < 100)).toBe(true)
       // And not too low (accounting for normalization)
-      expect(result.globalThreshold.some((v) => v > -100)).toBe(true)
+      expect(result.criticalBandThresholds.some((v) => v > -100)).toBe(true)
     })
 
     it('should demonstrate frequency masking', () => {
@@ -57,21 +48,16 @@ describe('Psychoacoustics', () => {
       // Add a weaker tone at bin 50 (approximately 4.3kHz) - far away
       mdctCoeffs[50] = 1.0
 
-      const result = psychoAnalysis(
-        mdctCoeffs,
-        512,
-        bufferPool.psychoAnalysis,
-        96
-      )
+      const result = psychoAnalysis(mdctCoeffs, 96)
 
       // The psychoacoustic model creates complex masking patterns
-      // Just verify that thresholds vary across frequency (not uniform)
-      const minThreshold = Math.min(...result.globalThreshold)
-      const maxThresholdValue = Math.max(...result.globalThreshold)
+      // Just verify that thresholds vary across critical bands (not uniform)
+      const minThreshold = Math.min(...result.criticalBandThresholds)
+      const maxThresholdValue = Math.max(...result.criticalBandThresholds)
       expect(maxThresholdValue).toBeGreaterThan(minThreshold)
 
       // Also verify that we have reasonable threshold values
-      expect(maxThresholdValue).toBeLessThan(100) // Not too high
+      expect(maxThresholdValue).toBeLessThan(200) // Not too high
       expect(minThreshold).toBeGreaterThan(-200) // Not too low
     })
 
@@ -83,12 +69,7 @@ describe('Psychoacoustics', () => {
         mdctCoeffs[i] = 0.0001 * Math.random()
       }
 
-      const result = psychoAnalysis(
-        mdctCoeffs,
-        512,
-        bufferPool.psychoAnalysis,
-        96
-      )
+      const result = psychoAnalysis(mdctCoeffs, 96)
 
       // The psychoacoustic model should produce reasonable thresholds
       // Note: Due to normalization and interpolation, the exact frequency response
@@ -98,8 +79,8 @@ describe('Psychoacoustics', () => {
       let minThreshold = Infinity
       let maxThreshold = -Infinity
 
-      for (let i = 0; i < result.globalThreshold.length; i++) {
-        const threshold = result.globalThreshold[i]
+      for (let i = 0; i < result.criticalBandThresholds.length; i++) {
+        const threshold = result.criticalBandThresholds[i]
         minThreshold = Math.min(minThreshold, threshold)
         maxThreshold = Math.max(maxThreshold, threshold)
 

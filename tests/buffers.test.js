@@ -5,7 +5,6 @@ import {
   MAX_BFU_SIZE,
   QMF_DELAY,
   QMF_HIGH_BAND_DELAY,
-  PSYMODEL_FFT_SIZE,
 } from '../codec/core/constants'
 
 describe('BufferPool', () => {
@@ -60,10 +59,6 @@ describe('BufferPool', () => {
     expect(pool.reversalBuffers[128].length).toBe(128)
     expect(pool.reversalBuffers[256].length).toBe(256)
 
-    // Psychoacoustic model buffers
-    expect(pool.psychoAnalysis.flags.length).toBe(PSYMODEL_FFT_SIZE / 2)
-    expect(pool.psychoAnalysis.threshold.length).toBe(PSYMODEL_FFT_SIZE / 2 + 1)
-
     // Bit allocation buffers
     expect(pool.bfuData.length).toBe(NUM_BFUS)
     expect(pool.bfuData[0].length).toBe(MAX_BFU_SIZE)
@@ -82,8 +77,6 @@ describe('BufferPool', () => {
     checkZero(pool.mdctOverlap[0])
     checkZero(pool.imdctOverlap[0])
     checkZero(pool.reversalBuffers[32])
-    checkZero(pool.psychoAnalysis.flags)
-    checkZero(pool.psychoAnalysis.threshold)
     checkZero(pool.bfuData[0])
   })
 })
