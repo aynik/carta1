@@ -17,6 +17,7 @@ import {
   NUM_BFUS,
   SAMPLE_RATE,
   BFU_FREQUENCIES,
+  BFU_AMOUNTS_COUNT,
   PSYMODEL_MIN_POWER_DB,
   PSYMODEL_CB_FREQ_INDICES,
   INTERPOLATION_COMPENSATION_FACTOR,
@@ -93,7 +94,7 @@ function calculateBfuEnergy(bfuData, bfuSizes, bfuCount) {
       energy += data[j] * data[j]
     }
 
-    // Convert to dB (10 * log10(energy/size))
+    // Convert to dB correctly using log10
     energyPerBfu[i] =
       energy > 0 ? 10 * Math.log10(energy / size) : PSYMODEL_MIN_POWER_DB
   }
@@ -108,36 +109,32 @@ function calculateBfuEnergy(bfuData, bfuSizes, bfuCount) {
  */
 function interpolateCriticalBandsToBfus(criticalBandThresholds) {
   const maskThresholdPerBfu = new Float32Array(NUM_BFUS)
-  maskThresholdPerBfu.fill(PSYMODEL_MIN_POWER_DB)
-
   const freqPerBin = SAMPLE_RATE / PSYMODEL_FFT_SIZE
-
-  // Get frequency indices for critical bands (from constants)
-  const freqIndices = PSYMODEL_CB_FREQ_INDICES
 
   for (let i = 0; i < NUM_BFUS; i++) {
     const bfuFreq = BFU_FREQUENCIES[i]
-    // Convert BFU frequency to FFT bin index (rounded like current implementation)
     const fftBinIndex = Math.round(bfuFreq / freqPerBin)
 
     // Find which critical bands surround this FFT bin
     let bandIndex = 0
     while (
-      bandIndex < freqIndices.length - 1 &&
-      freqIndices[bandIndex + 1] < fftBinIndex
+      bandIndex < PSYMODEL_CB_FREQ_INDICES.length - 1 &&
+      PSYMODEL_CB_FREQ_INDICES[bandIndex + 1] < fftBinIndex
     ) {
       bandIndex++
     }
 
-    // Apply same interpolation logic as interpolateThresholdCompensated
-    if (fftBinIndex <= freqIndices[0]) {
+    if (fftBinIndex <= PSYMODEL_CB_FREQ_INDICES[0]) {
       maskThresholdPerBfu[i] = criticalBandThresholds[0]
-    } else if (fftBinIndex >= freqIndices[freqIndices.length - 1]) {
+    } else if (
+      fftBinIndex >=
+      PSYMODEL_CB_FREQ_INDICES[PSYMODEL_CB_FREQ_INDICES.length - 1]
+    ) {
       maskThresholdPerBfu[i] =
         criticalBandThresholds[criticalBandThresholds.length - 1]
     } else {
-      const x0 = freqIndices[bandIndex]
-      const x1 = freqIndices[bandIndex + 1]
+      const x0 = PSYMODEL_CB_FREQ_INDICES[bandIndex]
+      const x1 = PSYMODEL_CB_FREQ_INDICES[bandIndex + 1]
       const y0 = criticalBandThresholds[bandIndex]
       const y1 = criticalBandThresholds[bandIndex + 1]
       const bandWidth = x1 - x0
@@ -168,7 +165,6 @@ function calculateSMR(signalEnergyDb, maskThresholdDb, maxBfuCount) {
   const smrValues = new Float32Array(maxBfuCount)
 
   for (let bfu = 0; bfu < maxBfuCount; bfu++) {
-    // BFUs with no signal have undefined SMR
     smrValues[bfu] =
       signalEnergyDb[bfu] <= PSYMODEL_MIN_POWER_DB
         ? -Infinity
@@ -190,111 +186,86 @@ function selectOptimalBfuCount(smrValues, signalEnergyDb, maxBfuCount) {
   const hasAudibleContent = smrValues.some((smr) => smr > 0)
 
   if (hasAudibleContent) {
-    return selectBfuCountForAudibleContent(smrValues, maxBfuCount)
-  } else {
-    return selectBfuCountForInaudibleContent(
-      smrValues,
-      signalEnergyDb,
-      maxBfuCount
-    )
-  }
-}
-
-/**
- * Select BFU count when content is above masking threshold
- * Uses diminishing returns approach - find where adding more BFUs
- * provides minimal benefit
- */
-function selectBfuCountForAudibleContent(smrValues, maxBfuCount) {
-  // Create sorted list of BFUs by their contribution (positive SMR only)
-  const contributions = []
-  for (let i = 0; i < maxBfuCount; i++) {
-    if (smrValues[i] > 0) {
-      contributions.push({ index: i, smr: smrValues[i] })
-    }
-  }
-  contributions.sort((a, b) => b.smr - a.smr)
-
-  if (contributions.length === 0) {
-    return BFU_AMOUNTS[BFU_AMOUNTS.length - 1]
-  }
-
-  // Find the natural cutoff using gradient of cumulative SMR
-  const cumulativeSMR = []
-  let sum = 0
-  for (let i = 0; i < contributions.length; i++) {
-    sum += contributions[i].smr
-    cumulativeSMR.push(sum)
-  }
-
-  // Find where the gradient becomes shallow (diminishing returns)
-  for (const candidateCount of BFU_AMOUNTS) {
-    if (candidateCount > maxBfuCount) continue
-
-    // Check if all significant contributions fit within this count
-    const requiredBfus = contributions
-      .slice(0, Math.min(contributions.length, candidateCount))
-      .map((c) => c.index)
-
-    const maxRequiredIndex = Math.max(...requiredBfus, 0)
-
-    if (maxRequiredIndex < candidateCount) {
-      // Check if we've captured the bulk of the contribution
-      const capturedIndex = Math.min(
-        candidateCount - 1,
-        contributions.length - 1
-      )
-      if (capturedIndex >= contributions.length - 1) {
-        return candidateCount
+    // Create sorted list of BFUs by their contribution (positive SMR only)
+    const contributions = []
+    for (let i = 0; i < maxBfuCount; i++) {
+      if (smrValues[i] > 0) {
+        contributions.push({ index: i, smr: smrValues[i] })
       }
+    }
+    contributions.sort((a, b) => b.smr - a.smr)
 
-      // Use gradient to detect diminishing returns
-      const currentValue = cumulativeSMR[capturedIndex]
-      const totalValue = cumulativeSMR[cumulativeSMR.length - 1]
-      const remainingIndices = contributions.length - capturedIndex - 1
+    if (contributions.length === 0) {
+      return BFU_AMOUNTS[BFU_AMOUNTS.length - 1]
+    }
 
-      if (remainingIndices > 0) {
-        const averageRemaining = (totalValue - currentValue) / remainingIndices
-        const averageCaptured = currentValue / (capturedIndex + 1)
+    // Find the natural cutoff using gradient of cumulative SMR
+    const cumulativeSMR = []
+    let sum = 0
+    for (let i = 0; i < contributions.length; i++) {
+      sum += contributions[i].smr
+      cumulativeSMR.push(sum)
+    }
 
-        // If remaining BFUs contribute much less on average, we've found our cutoff
-        if (averageRemaining < averageCaptured * 0.1) {
+    // Find where the gradient becomes shallow (diminishing returns)
+    for (const candidateCount of BFU_AMOUNTS) {
+      if (candidateCount > maxBfuCount) continue
+
+      // Check if all significant contributions fit within this count
+      const requiredBfus = contributions
+        .slice(0, Math.min(contributions.length, candidateCount))
+        .map((c) => c.index)
+
+      const maxRequiredIndex = Math.max(...requiredBfus, 0)
+
+      if (maxRequiredIndex < candidateCount) {
+        // Check if we've captured the bulk of the contribution
+        const capturedIndex = Math.min(
+          candidateCount - 1,
+          contributions.length - 1
+        )
+        if (capturedIndex >= contributions.length - 1) {
           return candidateCount
+        }
+
+        // Use gradient to detect diminishing returns
+        const remainingIndices = contributions.length - capturedIndex - 1
+        if (remainingIndices > 0) {
+          const avgRemaining =
+            (cumulativeSMR[cumulativeSMR.length - 1] -
+              cumulativeSMR[capturedIndex]) /
+            remainingIndices
+          const avgCaptured = cumulativeSMR[capturedIndex] / (capturedIndex + 1)
+
+          // If remaining BFUs contribute much less on average, we've found our cutoff
+          if (avgRemaining < avgCaptured * 0.1) {
+            return candidateCount
+          }
         }
       }
     }
-  }
+  } else {
+    // Find the highest BFU index that contains actual signal
+    let highestSignalBfu = -1
+    for (let i = maxBfuCount - 1; i >= 0; i--) {
+      if (
+        signalEnergyDb[i] > PSYMODEL_MIN_POWER_DB &&
+        smrValues[i] > -Infinity
+      ) {
+        highestSignalBfu = i
+        break
+      }
+    }
 
-  return BFU_AMOUNTS[BFU_AMOUNTS.length - 1]
-}
-
-/**
- * Select BFU count when all content is below masking threshold
- * Simply finds the smallest count that includes all BFUs with signal
- */
-function selectBfuCountForInaudibleContent(
-  smrValues,
-  signalEnergyDb,
-  maxBfuCount
-) {
-  // Find the highest BFU index that contains actual signal
-  let highestSignalBfu = -1
-
-  for (let i = maxBfuCount - 1; i >= 0; i--) {
-    if (signalEnergyDb[i] > PSYMODEL_MIN_POWER_DB && smrValues[i] > -Infinity) {
-      highestSignalBfu = i
-      break
+    // Find smallest BFU count that includes all signal
+    for (const candidateCount of BFU_AMOUNTS) {
+      if (candidateCount > highestSignalBfu) {
+        return candidateCount
+      }
     }
   }
 
-  // Find smallest BFU count that includes all signal
-  for (const candidateCount of BFU_AMOUNTS) {
-    if (candidateCount > highestSignalBfu) {
-      return candidateCount
-    }
-  }
-
-  return BFU_AMOUNTS[BFU_AMOUNTS.length - 1]
+  return BFU_AMOUNTS[BFU_AMOUNTS_COUNT - 1]
 }
 
 /**
@@ -311,62 +282,11 @@ function performBitAllocation(
   bfuSizes,
   availableBits
 ) {
-  const allocation = new Int32Array(actualBfuCount).fill(0)
-
-  // Initialize priority queue with BFUs that have signal
-  const priorityQueue = createPriorityQueue(smrValues, actualBfuCount)
-
-  // Greedy allocation: always upgrade BFU with highest priority
-  while (!priorityQueue.isEmpty()) {
-    const bestBfu = priorityQueue.peek()
-    const currentWl = allocation[bestBfu.bfu]
-
-    // Check if BFU is already at maximum word length
-    if (currentWl >= MAX_WORD_LENGTH_INDEX) {
-      priorityQueue.pop()
-      continue
-    }
-
-    // Calculate cost to upgrade this BFU
-    const upgradeCost = calculateUpgradeCost(bestBfu.bfu, currentWl, bfuSizes)
-
-    if (upgradeCost <= availableBits) {
-      // Perform upgrade
-      availableBits -= upgradeCost
-      allocation[bestBfu.bfu]++
-
-      // Update priority based on distortion reduction
-      bestBfu.priority += DISTORTION_DELTA_DB[currentWl]
-      priorityQueue.updateTop()
-    } else {
-      // Not enough bits for this BFU
-      priorityQueue.pop()
-    }
-  }
-
-  return allocation
-}
-
-/**
- * Calculate bit cost to upgrade a BFU's word length
- */
-function calculateUpgradeCost(bfuIndex, currentWl, bfuSizes) {
-  const currentBits = WORD_LENGTH_BITS[currentWl] * bfuSizes[bfuIndex]
-  const nextBits = WORD_LENGTH_BITS[currentWl + 1] * bfuSizes[bfuIndex]
-  return nextBits - currentBits
-}
-
-/**
- * Create a priority queue for BFU allocation
- * @param {Float32Array} smrValues - Initial priorities (SMR values)
- * @param {number} bfuCount - Number of BFUs
- * @returns {Object} Priority queue interface
- */
-function createPriorityQueue(smrValues, bfuCount) {
+  const allocation = new Int32Array(actualBfuCount)
   const heap = []
 
-  // Initialize with BFUs that have signal
-  for (let i = 0; i < bfuCount; i++) {
+  // Initialize heap with BFUs that have signal
+  for (let i = 0; i < actualBfuCount; i++) {
     if (smrValues[i] > -Infinity) {
       heap.push({ bfu: i, priority: smrValues[i] })
     }
@@ -377,12 +297,46 @@ function createPriorityQueue(smrValues, bfuCount) {
     heapifyDown(heap, i)
   }
 
-  return {
-    isEmpty: () => heap.length === 0,
-    peek: () => heap[0],
-    pop: () => popMax(heap),
-    updateTop: () => heapifyDown(heap, 0),
+  // Greedy allocation
+  while (heap.length > 0 && availableBits > 0) {
+    const bestBfu = heap[0]
+    const currentWl = allocation[bestBfu.bfu]
+
+    if (currentWl >= MAX_WORD_LENGTH_INDEX) {
+      heap[0] = heap[heap.length - 1]
+      heap.pop()
+      if (heap.length > 0) heapifyDown(heap, 0)
+      continue
+    }
+
+    const upgradeCost = calculateUpgradeCost(bestBfu.bfu, currentWl, bfuSizes)
+
+    if (upgradeCost <= availableBits) {
+      availableBits -= upgradeCost
+      allocation[bestBfu.bfu]++
+      bestBfu.priority += DISTORTION_DELTA_DB[currentWl]
+      heapifyDown(heap, 0)
+    } else {
+      heap[0] = heap[heap.length - 1]
+      heap.pop()
+      if (heap.length > 0) heapifyDown(heap, 0)
+    }
   }
+
+  return allocation
+}
+
+/**
+ * Calculate bit cost to upgrade a BFU's word length
+ * @param {number} bfuIndex - Index of the BFU to upgrade
+ * @param {number} currentWl - Current word length of the BFU
+ * @param {number[]} bfuSizes - Array of BFU sizes (number of coefficients per BFU)
+ * @returns {number} Additional bits required to upgrade word length by 1
+ */
+function calculateUpgradeCost(bfuIndex, currentWl, bfuSizes) {
+  const currentBits = WORD_LENGTH_BITS[currentWl] * bfuSizes[bfuIndex]
+  const nextBits = WORD_LENGTH_BITS[currentWl + 1] * bfuSizes[bfuIndex]
+  return nextBits - currentBits
 }
 
 /**
@@ -391,17 +345,15 @@ function createPriorityQueue(smrValues, bfuCount) {
  * @param {number} startIdx - Starting index
  */
 function heapifyDown(heap, startIdx) {
-  let idx = startIdx
-  const element = heap[idx]
   const length = heap.length
+  const element = heap[startIdx]
 
   while (true) {
-    const leftChild = 2 * idx + 1
-    const rightChild = 2 * idx + 2
-    let largest = idx
+    const leftChild = 2 * startIdx + 1
+    const rightChild = 2 * startIdx + 2
+    let largest = startIdx
     let largestPriority = element.priority
 
-    // Find largest among parent and children
     if (leftChild < length && heap[leftChild].priority > largestPriority) {
       largest = leftChild
       largestPriority = heap[leftChild].priority
@@ -411,30 +363,11 @@ function heapifyDown(heap, startIdx) {
       largest = rightChild
     }
 
-    // If parent is largest, we're done
-    if (largest === idx) break
+    if (largest === startIdx) break
 
-    // Swap and continue
-    heap[idx] = heap[largest]
-    idx = largest
+    heap[startIdx] = heap[largest]
+    startIdx = largest
   }
 
-  heap[idx] = element
-}
-
-/**
- * Remove and return the maximum element from heap
- * @param {Array} heap - Heap array
- * @returns {Object} Maximum element
- */
-function popMax(heap) {
-  const max = heap[0]
-  const last = heap.pop()
-
-  if (heap.length > 0) {
-    heap[0] = last
-    heapifyDown(heap, 0)
-  }
-
-  return max
+  heap[startIdx] = element
 }

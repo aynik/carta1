@@ -17,6 +17,9 @@ import {
   PSYMODEL_CRITICAL_BANDS,
   PSYMODEL_THRESHOLD_TABLE,
   PSYMODEL_FREQ_TO_CB_MAP,
+  PSYMODEL_PSD_SOURCE_IDX0,
+  PSYMODEL_PSD_INTERP_WEIGHT,
+  PSYMODEL_PSD_SOURCE_IDX1,
 } from '../core/constants.js'
 
 /**
@@ -48,11 +51,8 @@ export function fromDb(db) {
 export function psychoAnalysis(mdctCoeffs, normalizationDb) {
   const fftScale = PSYMODEL_FFT_SIZE / 512
 
-  // Apply frequency band reversal correction
-  const correctedCoeffs = applyMdctCorrection(mdctCoeffs)
-
   // Calculate power spectral density
-  const psd = calculatePSDFromMDCT(correctedCoeffs, normalizationDb)
+  const psd = calculatePSDFromMDCT(mdctCoeffs, normalizationDb)
 
   // Find tonal and non-tonal maskers
   const { flags, tonalMaskers, nonTonalMaskers } = findAllMaskers(psd, fftScale)
@@ -67,34 +67,12 @@ export function psychoAnalysis(mdctCoeffs, normalizationDb) {
   return {
     psd,
     tonalMaskers,
+    tonalMaskersCount: tonalMaskers.length,
     nonTonalMaskers,
+    nonTonalMaskersCount: nonTonalMaskers.length,
     criticalBandThresholds,
     flags,
   }
-}
-
-/**
- * Apply frequency band reversal correction to MDCT coefficients
- * @param {Float32Array} mdctCoeffs - Original MDCT coefficients
- * @returns {Float32Array} Corrected coefficients
- */
-function applyMdctCorrection(mdctCoeffs) {
-  const corrected = new Float32Array(512)
-
-  // Low band: direct copy
-  corrected.set(mdctCoeffs.subarray(0, 128), 0)
-
-  // Mid band: reversed
-  for (let i = 0; i < 128; i++) {
-    corrected[128 + i] = mdctCoeffs[255 - i]
-  }
-
-  // High band: reversed
-  for (let i = 0; i < 256; i++) {
-    corrected[256 + i] = mdctCoeffs[511 - i]
-  }
-
-  return corrected
 }
 
 /**
@@ -103,47 +81,34 @@ function applyMdctCorrection(mdctCoeffs) {
  * @returns {Float32Array} Power spectral density in dB
  */
 function calculatePSDFromMDCT(mdctCoeffs, normalizationDb) {
-  const halfTargetSize = PSYMODEL_FFT_SIZE / 2
-  const psd = new Float32Array(halfTargetSize + 1)
+  const half = PSYMODEL_FFT_SIZE >>> 1
+  const psd = new Float32Array(half + 1)
+  const linearPower = new Float32Array(half + 1)
 
-  // Calculate power values and find maximum
-  const powers = new Float32Array(512)
-  let maxPower = 0
-
-  for (let i = 0; i < 512; i++) {
-    const power = mdctCoeffs[i] * mdctCoeffs[i]
-    powers[i] = power
-    maxPower = Math.max(maxPower, power)
-  }
-
-  const normFactor = 1 / (maxPower || 1)
-  let maxPsdValue = -Infinity
-
-  // Interpolate for different sizes
-  const scaleFactor = 512 / PSYMODEL_FFT_SIZE
-
-  for (let i = 0; i <= halfTargetSize; i++) {
-    const srcIdx = i * scaleFactor
-    const srcIdxInt = Math.floor(srcIdx)
-    const frac = srcIdx - srcIdxInt
+  let maxLinearPower = 0
+  for (let i = 0; i <= half; i++) {
+    const a = mdctCoeffs[PSYMODEL_PSD_SOURCE_IDX0[i]]
+    const b = mdctCoeffs[PSYMODEL_PSD_SOURCE_IDX1[i]]
 
     const power =
-      srcIdxInt < 511
-        ? powers[srcIdxInt] * (1 - frac) + powers[srcIdxInt + 1] * frac
-        : powers[511]
+      a * a * (1 - PSYMODEL_PSD_INTERP_WEIGHT[i]) +
+      b * b * PSYMODEL_PSD_INTERP_WEIGHT[i]
+    linearPower[i] = power
 
-    const normalizedPower = power * normFactor
-    psd[i] = normalizedPower > 0 ? toDb(normalizedPower) : PSYMODEL_MIN_POWER_DB
-
-    maxPsdValue = Math.max(maxPsdValue, psd[i])
+    if (power > maxLinearPower) {
+      maxLinearPower = power
+    }
   }
 
-  // Apply normalization to target maximum
-  const normalizationDelta = normalizationDb - maxPsdValue
+  const offset =
+    normalizationDb - PSYMODEL_LOG10_FACTOR * Math.log(maxLinearPower || 1)
 
-  for (let i = 0; i < psd.length; i++) {
-    if (psd[i] > PSYMODEL_MIN_POWER_DB) {
-      psd[i] += normalizationDelta
+  for (let i = 0; i <= half; i++) {
+    const power = linearPower[i]
+    if (power > 0) {
+      psd[i] = PSYMODEL_LOG10_FACTOR * Math.log(power) + offset
+    } else {
+      psd[i] = PSYMODEL_MIN_POWER_DB
     }
   }
 
@@ -162,10 +127,10 @@ function findAllMaskers(psd, fftScale) {
   flags.fill(PSYMODEL_NOT_EXAMINED)
 
   // Find tonal maskers first
-  let { tonalList } = findTonalMaskers(psd, flags, fftScale)
+  const tonalList = findTonalMaskers(psd, flags, fftScale)
 
   // Find non-tonal maskers
-  let { nonTonalList } = findNonTonalMaskers(flags, psd)
+  const nonTonalList = findNonTonalMaskers(flags, psd)
 
   // Apply decimation to remove weak maskers
   const decimated = decimateMaskers(flags, tonalList, nonTonalList)
@@ -187,68 +152,67 @@ function findAllMaskers(psd, fftScale) {
 function findTonalMaskers(psd, flags, fftScale) {
   const tonalList = []
   const maxTonalBin = Math.floor(249 * fftScale)
-  const fftSize = (psd.length - 1) * 2
 
   // Frequency range boundaries
   const RANGE_LOW = Math.floor(63 * fftScale)
   const RANGE_MID = Math.floor(127 * fftScale)
   const RANGE_HIGH = Math.floor(150 * fftScale)
 
-  for (let k = 1; k < fftSize / 2 - 1 && k <= maxTonalBin; k++) {
+  for (let k = 1; k < psd.length - 1 && k <= maxTonalBin; k++) {
     // Check for local maximum
     if (psd[k] <= psd[k - 1] || psd[k] < psd[k + 1]) continue
 
     // Determine search range based on frequency
-    const searchOffsets = getSearchOffsets(k, RANGE_LOW, RANGE_MID, RANGE_HIGH)
-    if (!searchOffsets) continue
+    let searchOffsets
+    if (k > 2 && k < RANGE_LOW) {
+      searchOffsets = [-2, 2]
+    } else if (k >= RANGE_LOW && k < RANGE_MID) {
+      searchOffsets = [-3, -2, 2, 3]
+    } else if (k >= RANGE_MID && k < RANGE_HIGH) {
+      searchOffsets = [-6, -5, -4, -3, -2, 2, 3, 4, 5, 6]
+    } else {
+      continue
+    }
 
     // Check tonality criteria
     if (isTonal(psd, k, searchOffsets)) {
       // Calculate combined SPL
       const spl = toDb(fromDb(psd[k - 1]) + fromDb(psd[k]) + fromDb(psd[k + 1]))
-
       tonalList.push({ index: k, spl })
       markTonalComponent(flags, k, searchOffsets)
     }
   }
 
-  return { flags, tonalList }
-}
-
-/**
- * Get search offsets for tonality check based on frequency
- */
-function getSearchOffsets(k, rangeLow, rangeMid, rangeHigh) {
-  if (k > 2 && k < rangeLow) return [-2, 2]
-  if (k >= rangeLow && k < rangeMid) return [-3, -2, 2, 3]
-  if (k >= rangeMid && k < rangeHigh) return [-6, -5, -4, -3, -2, 2, 3, 4, 5, 6]
-  return null
+  return tonalList
 }
 
 /**
  * Check if a peak is tonal based on surrounding bins
+ * @param {Float32Array} psd - Power spectral density array
+ * @param {number} k - Index of the peak to test
+ * @param {number[]} offsets - Array of offset indices to check around the peak
+ * @returns {boolean} True if the peak qualifies as tonal
  */
 function isTonal(psd, k, offsets) {
-  const TONAL_THRESHOLD = 7 // dB
-
+  const TONAL_THRESHOLD = 7.0
   for (const offset of offsets) {
     const idx = k + offset
-    if (idx >= 0 && idx < psd.length) {
-      if (psd[k] - psd[idx] < TONAL_THRESHOLD) return false
+    if (idx >= 0 && idx < psd.length && psd[k] - psd[idx] < TONAL_THRESHOLD) {
+      return false
     }
   }
-
   return true
 }
 
 /**
  * Mark component and neighbors as tonal/irrelevant
+ * @param {Uint8Array} flags - Component classification flags array
+ * @param {number} k - Index of the tonal component
+ * @param {number[]} searchOffsets - Array of offset indices used for tonal detection
  */
 function markTonalComponent(flags, k, searchOffsets) {
   flags[k] = PSYMODEL_TONAL
-
-  const allOffsets = [...searchOffsets, -1, 1]
-  for (const offset of allOffsets) {
+  for (const offset of [...searchOffsets, -1, 1]) {
     const idx = k + offset
     if (idx >= 0 && idx < flags.length && idx !== k) {
       flags[idx] = PSYMODEL_IRRELEVANT
@@ -270,7 +234,6 @@ function findNonTonalMaskers(flags, psd) {
     const cbEnd =
       PSYMODEL_THRESHOLD_TABLE[PSYMODEL_CRITICAL_BANDS[i + 1]][0] - 1
 
-    // Calculate band energy and centroid
     const bandAnalysis = analyzeCriticalBand(
       psd,
       flags,
@@ -294,11 +257,17 @@ function findNonTonalMaskers(flags, psd) {
     }
   }
 
-  return { flags, nonTonalList }
+  return nonTonalList
 }
 
 /**
  * Analyze a critical band for non-tonal masking
+ * @param {Float32Array} psd - Power spectral density array
+ * @param {Uint8Array} flags - Component classification flags array
+ * @param {number} startBin - Starting frequency bin of the critical band
+ * @param {number} endBin - Ending frequency bin of the critical band
+ * @param {number} bandIndex - Critical band index for threshold table lookup
+ * @returns {Object} Analysis results with power and centroid offset
  */
 function analyzeCriticalBand(psd, flags, startBin, endBin, bandIndex) {
   let totalPower = 0
@@ -310,9 +279,11 @@ function analyzeCriticalBand(psd, flags, startBin, endBin, bandIndex) {
       const power = fromDb(psd[k])
       totalPower += power
 
-      const barkDiff =
-        PSYMODEL_THRESHOLD_TABLE[PSYMODEL_FREQ_TO_CB_MAP[k]][1] - baseBark
-      weightedPower += power * barkDiff
+      if (k < PSYMODEL_FREQ_TO_CB_MAP.length) {
+        const barkDiff =
+          PSYMODEL_THRESHOLD_TABLE[PSYMODEL_FREQ_TO_CB_MAP[k]][1] - baseBark
+        weightedPower += power * barkDiff
+      }
 
       flags[k] = PSYMODEL_IRRELEVANT
     }
@@ -385,6 +356,33 @@ function calculateCriticalBandThresholds(psd, tonalMaskers, nonTonalMaskers) {
     PSYMODEL_CRITICAL_BANDS.length
   )
 
+  // Pre-collect all maskers with their properties
+  const maskers = []
+
+  for (const masker of tonalMaskers) {
+    const j = masker.index
+    if (j < PSYMODEL_FREQ_TO_CB_MAP.length) {
+      maskers.push({
+        spl: masker.spl,
+        psd: psd[j],
+        bark: PSYMODEL_THRESHOLD_TABLE[PSYMODEL_FREQ_TO_CB_MAP[j]][1],
+        isTonal: true,
+      })
+    }
+  }
+
+  for (const masker of nonTonalMaskers) {
+    const j = masker.index
+    if (j < PSYMODEL_FREQ_TO_CB_MAP.length) {
+      maskers.push({
+        spl: masker.spl,
+        psd: psd[j],
+        bark: PSYMODEL_THRESHOLD_TABLE[PSYMODEL_FREQ_TO_CB_MAP[j]][1],
+        isTonal: false,
+      })
+    }
+  }
+
   // Calculate threshold for each critical band
   for (let i = 0; i < PSYMODEL_CRITICAL_BANDS.length; i++) {
     const bandData = PSYMODEL_THRESHOLD_TABLE[PSYMODEL_CRITICAL_BANDS[i]]
@@ -395,19 +393,21 @@ function calculateCriticalBandThresholds(psd, tonalMaskers, nonTonalMaskers) {
     let summedEnergy = fromDb(quietThreshold)
 
     // Add contributions from all maskers
-    summedEnergy += calculateMaskerContributions(
-      psd,
-      tonalMaskers,
-      maskedBark,
-      true // isTonal
-    )
+    for (const masker of maskers) {
+      const barkDistance = maskedBark - masker.bark
 
-    summedEnergy += calculateMaskerContributions(
-      psd,
-      nonTonalMaskers,
-      maskedBark,
-      false // isTonal
-    )
+      // Check if within masking range
+      if (barkDistance >= -3 && barkDistance < 8) {
+        const maskedDb = calculateMaskingLevel(
+          masker.spl,
+          masker.psd,
+          masker.bark,
+          barkDistance,
+          masker.isTonal
+        )
+        summedEnergy += fromDb(maskedDb)
+      }
+    }
 
     criticalBandThresholds[i] = toDb(summedEnergy)
   }
@@ -417,37 +417,12 @@ function calculateCriticalBandThresholds(psd, tonalMaskers, nonTonalMaskers) {
 
 /**
  * Calculate energy contributions from a set of maskers
- */
-function calculateMaskerContributions(psd, maskers, maskedBark, isTonal) {
-  let totalEnergy = 0
-
-  for (const masker of maskers) {
-    const j = masker.index
-    if (j >= PSYMODEL_FREQ_TO_CB_MAP.length) continue
-
-    const maskerBark = PSYMODEL_THRESHOLD_TABLE[PSYMODEL_FREQ_TO_CB_MAP[j]][1]
-    const barkDistance = maskedBark - maskerBark
-
-    // Check if within masking range
-    if (barkDistance < -3 || barkDistance >= 8) continue
-
-    // Calculate masking level
-    const maskedDb = calculateMaskingLevel(
-      masker.spl,
-      psd[j],
-      maskerBark,
-      barkDistance,
-      isTonal
-    )
-
-    totalEnergy += fromDb(maskedDb)
-  }
-
-  return totalEnergy
-}
-
-/**
- * Calculate masking level based on masker properties
+ * @param {number} maskerSpl - Sound pressure level of the masker in dB
+ * @param {number} maskerPsd - Power spectral density of the masker in dB
+ * @param {number} maskerBark - Bark frequency of the masker
+ * @param {number} barkDistance - Distance in Bark scale from masker to maskee
+ * @param {boolean} isTonal - Whether the masker is tonal or non-tonal
+ * @returns {number} Masking threshold contribution in dB
  */
 function calculateMaskingLevel(
   maskerSpl,
@@ -456,25 +431,22 @@ function calculateMaskingLevel(
   barkDistance,
   isTonal
 ) {
-  // Masking index
   const tonalOffset = isTonal
     ? -1.525 - 0.275 * maskerBark - 4.5
     : -1.525 - 0.175 * maskerBark - 0.5
 
-  // PSD-dependent factors
-  const psdFactor1 = 0.4 * maskerPsd + 6
+  const psdFactor1 = 0.4 * maskerPsd + 6.0
   const psdFactor2 = 0.15 * maskerPsd
 
-  // Calculate masking function
   let maskingFunction
-  if (barkDistance < -1) {
-    maskingFunction = 17 * (barkDistance + 1) - psdFactor1
-  } else if (barkDistance < 0) {
+  if (barkDistance < -1.0) {
+    maskingFunction = 17.0 * (barkDistance + 1.0) - psdFactor1
+  } else if (barkDistance < 0.0) {
     maskingFunction = psdFactor1 * barkDistance
-  } else if (barkDistance < 1) {
-    maskingFunction = -17 * barkDistance
+  } else if (barkDistance < 1.0) {
+    maskingFunction = -17.0 * barkDistance
   } else {
-    maskingFunction = -(barkDistance - 1) * (17 - psdFactor2) - 17
+    maskingFunction = -(barkDistance - 1.0) * (17.0 - psdFactor2) - 17.0
   }
 
   return maskerSpl + tonalOffset + maskingFunction

@@ -33,6 +33,7 @@ export const SPECS_PER_BFU = new Int32Array([
   20, 20, 20, 20, 20,
 ])
 
+export const BFU_AMOUNTS_COUNT = 8
 export const BFU_AMOUNTS = new Int32Array([20, 28, 32, 36, 40, 44, 48, 52])
 export const BFU_BAND_BOUNDARIES = new Int32Array([20, 36, 52])
 
@@ -190,6 +191,53 @@ export const SPREADING_MATRIX = (() => {
 // ISO/IEC 11172-3:1993 Psychoacoustic Model Constants
 export const PSYMODEL_MIN_POWER_DB = -200
 export const PSYMODEL_FFT_SIZE = 2048
+
+// Pre-computes lookup tables for resampling the MDCT power spectrum into a PSD.
+// For each PSD bin, these tables provide the two source MDCT indices and the
+// linear interpolation weight needed to calculate the final power value.
+export const [
+  PSYMODEL_PSD_SOURCE_IDX0,
+  PSYMODEL_PSD_SOURCE_IDX1,
+  PSYMODEL_PSD_INTERP_WEIGHT,
+] = (() => {
+  const half = PSYMODEL_FFT_SIZE >>> 1
+  const sizeMinus1 = PSYMODEL_FFT_SIZE - 1
+  const halfDiv2 = half / 2
+  const scale = sizeMinus1 / half
+
+  const idx0 = new Uint16Array(half + 1)
+  const idx1 = new Uint16Array(half + 1)
+  const w1 = new Float32Array(half + 1)
+
+  for (let i = 0; i <= half; i++) {
+    const src = i * scale
+    const base = src | 0
+
+    const j0 = base
+    idx0[i] =
+      j0 < half
+        ? j0 < halfDiv2
+          ? j0
+          : half - 1 - (j0 - halfDiv2)
+        : sizeMinus1 - (j0 - half)
+
+    const j1 = base + 1
+    if (j1 >= PSYMODEL_FFT_SIZE) {
+      idx1[i] = idx0[i]
+    } else {
+      idx1[i] =
+        j1 < half
+          ? j1 < halfDiv2
+            ? j1
+            : half - 1 - (j1 - halfDiv2)
+          : sizeMinus1 - (j1 - half)
+    }
+
+    w1[i] = src - base
+  }
+
+  return [idx0, idx1, w1]
+})()
 
 // FFT sizes for transient detection
 export const FFT_SIZE_LOW = 256
