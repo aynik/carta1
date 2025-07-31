@@ -240,9 +240,9 @@ export const [
 })()
 
 // FFT sizes for transient detection
-export const FFT_SIZE_LOW = 256
-export const FFT_SIZE_MID = 256
-export const FFT_SIZE_HIGH = 512
+export const FFT_SIZE_LOW = 128
+export const FFT_SIZE_MID = 128
+export const FFT_SIZE_HIGH = 256
 
 // Quantization
 export const QUANTIZATION_SIGN_BIT_SHIFT = 1

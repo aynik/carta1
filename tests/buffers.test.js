@@ -34,9 +34,9 @@ describe('BufferPool', () => {
     expect(pool.qmfDelays.highBand.length).toBe(QMF_HIGH_BAND_DELAY)
 
     // Transient detector
-    expect(pool.transientDetection.prevLowCoeffs.length).toBe(128)
-    expect(pool.transientDetection.prevMidCoeffs.length).toBe(128)
-    expect(pool.transientDetection.prevHighCoeffs.length).toBe(256)
+    expect(pool.transientDetection.prevLowCoeffs.length).toBe(64)
+    expect(pool.transientDetection.prevMidCoeffs.length).toBe(64)
+    expect(pool.transientDetection.prevHighCoeffs.length).toBe(128)
 
     // MDCT/IMDCT work buffers
     expect(pool.mdctBuffers[16].real.length).toBe(16)
