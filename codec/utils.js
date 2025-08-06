@@ -146,6 +146,46 @@ export function withStereo(monoTransform, ...args) {
   }
 }
 
+/**
+ * Reverses the spectral order of coefficients for mid/high band processing
+ *
+ * Used in both MDCT and IMDCT stages to handle spectral reversal required
+ * by the ATRAC1 format for mid and high frequency bands.
+ *
+ * @param {Float32Array} spectrum - Input spectrum coefficients
+ * @param {Object} reversalBuffers - Pre-allocated buffers for different spectrum sizes
+ * @returns {Float32Array} Spectrum with reversed coefficient order
+ */
+export function reverseSpectrum(spectrum, reversalBuffers) {
+  const reversed = reversalBuffers[spectrum.length]
+  for (let i = 0; i < spectrum.length; i++) {
+    reversed[i] = spectrum[spectrum.length - 1 - i]
+  }
+  return reversed
+}
+
+/**
+ * Calculates the starting offset for a frequency band in the coefficient array
+ *
+ * @param {number} bandIndex - Band index (0=low, 1=mid, 2=high)
+ * @returns {number} Starting offset in the 512-sample coefficient array
+ */
+export function calculateBandOffset(bandIndex) {
+  return bandIndex === 0 ? 0 : bandIndex === 1 ? 128 : 256
+}
+
+/**
+ * Extracts coefficients for a specific frequency band from the full coefficient array
+ *
+ * @param {Float32Array} coefficients - Full 512-sample coefficient array
+ * @param {number} bandIndex - Band index (0=low, 1=mid, 2=high)
+ * @returns {Float32Array} Subarray containing coefficients for the specified band
+ */
+export function extractBandCoefficients(coefficients, bandIndex) {
+  const offsets = [0, 128, 256, 512]
+  return coefficients.subarray(offsets[bandIndex], offsets[bandIndex + 1])
+}
+
 // Stereo-adapted utility functions
 export const withStereoFlushSamples = withStereo(withFlushSamples)
 export const withStereoDelayCompensation = withStereo(withDelayCompensation)

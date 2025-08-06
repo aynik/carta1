@@ -244,6 +244,17 @@ export const FFT_SIZE_LOW = 128
 export const FFT_SIZE_MID = 128
 export const FFT_SIZE_HIGH = 256
 
+// MDCT/IMDCT transform configuration
+export const MDCT_BAND_CONFIGS = [
+  { size: 128, windowStart: 48 }, // Low band (0-5.5kHz)
+  { size: 128, windowStart: 48 }, // Mid band (5.5-11kHz)
+  { size: 256, windowStart: 112 }, // High band (11-22kHz)
+]
+
+export const MDCT_SHORT_BLOCK_SIZE = 32
+export const MDCT_OVERLAP_SIZE = 32
+export const MDCT_TAIL_WINDOW_SIZE = 16
+
 // Quantization
 export const QUANTIZATION_SIGN_BIT_SHIFT = 1
 

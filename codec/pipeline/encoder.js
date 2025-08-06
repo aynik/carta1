@@ -14,7 +14,12 @@
  * containing buffer pools and encoding options.
  */
 
-import { pipe, throwError } from '../utils.js'
+import {
+  pipe,
+  throwError,
+  reverseSpectrum,
+  calculateBandOffset,
+} from '../utils.js'
 import { qmfAnalysis } from '../transforms/qmf.js'
 import { mdct64, mdct256, mdct512 } from '../transforms/mdct.js'
 import {
@@ -34,6 +39,9 @@ import {
   MDCT_SIZE_SHORT,
   MDCT_SIZE_MID,
   MDCT_SIZE_LONG,
+  MDCT_BAND_CONFIGS,
+  MDCT_SHORT_BLOCK_SIZE,
+  MDCT_OVERLAP_SIZE,
 } from '../core/constants.js'
 import { performFFT, detectTransient } from '../analysis/transient.js'
 import { psychoAnalysis } from '../analysis/psychoacoustics.js'
@@ -180,6 +188,130 @@ export function mdctStage(context) {
     context?.bufferPool ?? throwError('mdctStage: bufferPool is required')
   const overlapBuffers = bufferPool.mdctOverlap
 
+  // Transform function mapping for each band
+  const TRANSFORM_FUNCS = [mdct256, mdct256, mdct512]
+
+  /**
+   * Transform a single frequency band using MDCT
+   */
+  function transformBand(
+    samples,
+    bandIndex,
+    blockMode,
+    overlapBuffer,
+    bufferPool
+  ) {
+    const config = MDCT_BAND_CONFIGS[bandIndex]
+    const transformFunc = TRANSFORM_FUNCS[bandIndex]
+    const isLongBlock = blockMode === 0
+
+    if (isLongBlock) {
+      return transformLongBlock(
+        samples,
+        bandIndex,
+        config,
+        transformFunc,
+        overlapBuffer,
+        bufferPool
+      )
+    } else {
+      return transformShortBlocks(
+        samples,
+        bandIndex,
+        config,
+        overlapBuffer,
+        bufferPool
+      )
+    }
+  }
+
+  /**
+   * Transform using long block (better frequency resolution)
+   */
+  function transformLongBlock(
+    samples,
+    bandIndex,
+    config,
+    transformFunc,
+    overlapBuffer,
+    bufferPool
+  ) {
+    const mdctSize = bandIndex === 2 ? MDCT_SIZE_LONG : MDCT_SIZE_MID
+    const mdctInput = bufferPool.transformBuffers[mdctSize]
+    mdctInput.fill(0)
+
+    // Apply overlap from previous frame
+    mdctInput.set(overlapBuffer, config.windowStart)
+
+    // Window and save tail for next frame
+    applyTailWindowing(samples, overlapBuffer, config.size)
+
+    // Add current frame samples
+    mdctInput.set(samples, config.windowStart + MDCT_OVERLAP_SIZE)
+
+    // Transform
+    let spectrum = transformFunc.transform(mdctInput, bufferPool.mdctBuffers)
+
+    // Apply spectral reversal for mid/high bands
+    if (bandIndex > 0) {
+      spectrum = reverseSpectrum(spectrum, bufferPool.reversalBuffers)
+    }
+
+    return spectrum
+  }
+
+  /**
+   * Transform using short blocks (better time resolution for transients)
+   */
+  function transformShortBlocks(
+    samples,
+    bandIndex,
+    config,
+    overlapBuffer,
+    bufferPool
+  ) {
+    const numBlocks = 1 << (config.size === 256 ? 3 : 2) // 8 for band 2, 4 for bands 0-1
+    const output = new Float32Array(config.size)
+
+    for (let block = 0; block < numBlocks; block++) {
+      const blockStart = block * MDCT_SHORT_BLOCK_SIZE
+      const blockSamples = samples.subarray(
+        blockStart,
+        blockStart + MDCT_SHORT_BLOCK_SIZE
+      )
+
+      // Prepare MDCT input
+      const mdctInput = bufferPool.transformBuffers[MDCT_SIZE_SHORT]
+      mdctInput.fill(0)
+      mdctInput.set(overlapBuffer, 0)
+
+      // Window and save tail
+      applyTailWindowing(blockSamples, overlapBuffer, MDCT_SHORT_BLOCK_SIZE)
+      mdctInput.set(blockSamples, MDCT_OVERLAP_SIZE)
+
+      // Transform
+      let spectrum = mdct64.transform(mdctInput, bufferPool.mdctBuffers)
+
+      // Apply spectral reversal for mid/high bands
+      if (bandIndex > 0) {
+        spectrum = reverseSpectrum(spectrum, bufferPool.reversalBuffers)
+      }
+
+      output.set(spectrum, blockStart)
+    }
+
+    return output
+  }
+
+  function applyTailWindowing(samples, overlapBuffer, blockSize) {
+    const tailStart = blockSize - MDCT_OVERLAP_SIZE
+    for (let i = 0; i < MDCT_OVERLAP_SIZE; i++) {
+      const tailValue = samples[tailStart + i]
+      overlapBuffer[i] = WINDOW_SHORT[i] * tailValue
+      samples[tailStart + i] = tailValue * WINDOW_SHORT[31 - i]
+    }
+  }
+
   /**
    * Transform frequency bands using MDCT
    * @param {Object} input - Block selection results
@@ -194,60 +326,20 @@ export function mdctStage(context) {
    */
   return (input) => {
     const { bands, blockModes, originalFrame } = input
-
     const coefficients = new Float32Array(512)
 
-    for (let band = 0; band < 3; band++) {
-      const samples = bands[band]
-      const bandSize = band === 2 ? 256 : 128
-      const numBlocks = 1 << blockModes[band]
-      const blockSize = numBlocks === 1 ? bandSize : 32
+    bands.forEach((bandSamples, bandIndex) => {
+      const transformed = transformBand(
+        bandSamples,
+        bandIndex,
+        blockModes[bandIndex],
+        overlapBuffers[bandIndex],
+        bufferPool
+      )
 
-      const mdctFunc =
-        numBlocks === 1 ? (band === 2 ? mdct512 : mdct256) : mdct64
-      const mdctSize =
-        numBlocks === 1
-          ? band === 2
-            ? MDCT_SIZE_LONG
-            : MDCT_SIZE_MID
-          : MDCT_SIZE_SHORT
-      const windowStart = numBlocks === 1 ? (band === 2 ? 112 : 48) : 0
-
-      const offset = band === 0 ? 0 : band === 1 ? 128 : 256
-
-      for (let block = 0; block < numBlocks; block++) {
-        const blockStart = block * blockSize
-        const mdctInput = bufferPool.transformBuffers[mdctSize]
-        mdctInput.fill(0)
-
-        mdctInput.set(overlapBuffers[band], windowStart)
-
-        for (let i = 0; i < 32; i++) {
-          const tailValue = samples[blockStart + blockSize - 32 + i]
-          overlapBuffers[band][i] = WINDOW_SHORT[i] * tailValue
-          samples[blockStart + blockSize - 32 + i] =
-            tailValue * WINDOW_SHORT[31 - i]
-        }
-
-        mdctInput.set(
-          samples.subarray(blockStart, blockStart + blockSize),
-          windowStart + 32
-        )
-
-        let spectrum = mdctFunc.transform(mdctInput, bufferPool.mdctBuffers)
-
-        if (band > 0) {
-          const reversed = bufferPool.reversalBuffers[spectrum.length]
-          reversed.fill(0)
-          for (let i = 0; i < spectrum.length; i++) {
-            reversed[i] = spectrum[spectrum.length - 1 - i]
-          }
-          spectrum = reversed
-        }
-
-        coefficients.set(spectrum, offset + blockStart)
-      }
-    }
+      const offset = calculateBandOffset(bandIndex)
+      coefficients.set(transformed, offset)
+    })
 
     return { bands, coefficients, blockModes, originalFrame }
   }

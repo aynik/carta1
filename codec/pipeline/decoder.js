@@ -13,7 +13,12 @@
  * containing buffer pools and decoding options.
  */
 
-import { pipe, throwError } from '../utils.js'
+import {
+  pipe,
+  throwError,
+  reverseSpectrum,
+  extractBandCoefficients,
+} from '../utils.js'
 import { qmfSynthesis } from '../transforms/qmf.js'
 import { imdct64, imdct256, imdct512, overlapAdd } from '../transforms/mdct.js'
 import { dequantize } from '../coding/quantization.js'
@@ -25,6 +30,9 @@ import {
   WORD_LENGTH_BITS,
   WINDOW_SHORT,
   MDCT_SIZE_LONG,
+  MDCT_BAND_CONFIGS,
+  MDCT_SHORT_BLOCK_SIZE,
+  MDCT_TAIL_WINDOW_SIZE,
 } from '../core/constants.js'
 
 /**
@@ -110,6 +118,173 @@ export function imdctStage(context) {
     context?.bufferPool ?? throwError('imdctStage: bufferPool is required')
   const overlapBuffers = bufferPool.imdctOverlap
 
+  // Transform function mapping for each band
+  const TRANSFORM_FUNCS = [imdct256, imdct256, imdct512]
+
+  /**
+   * Inverse transform a single frequency band
+   */
+  function transformBand(
+    coeffs,
+    bandIndex,
+    blockMode,
+    overlapBuffer,
+    bufferPool,
+    config
+  ) {
+    const isLongBlock = blockMode === 0
+    const transformFunc = TRANSFORM_FUNCS[bandIndex]
+
+    if (isLongBlock) {
+      return inverseLongBlock(
+        coeffs,
+        bandIndex,
+        overlapBuffer,
+        bufferPool,
+        config,
+        transformFunc
+      )
+    } else {
+      return inverseShortBlocks(
+        coeffs,
+        bandIndex,
+        overlapBuffer,
+        bufferPool,
+        config
+      )
+    }
+  }
+
+  /**
+   * Inverse transform using long block
+   */
+  function inverseLongBlock(
+    coeffs,
+    bandIndex,
+    overlapBuffer,
+    bufferPool,
+    config,
+    transformFunc
+  ) {
+    // Unreverse spectral reversal for mid/high bands
+    let blockSpecs = coeffs
+    if (bandIndex > 0) {
+      blockSpecs = reverseSpectrum(coeffs, bufferPool.reversalBuffers)
+    }
+
+    // Apply inverse transform
+    const inv = transformFunc.transform(blockSpecs, bufferPool.mdctBuffers)
+    const invStart = inv.length / 4
+
+    // Prepare output buffer
+    const invBuf = bufferPool.transformBuffers[MDCT_SIZE_LONG]
+    invBuf.fill(0)
+
+    // Copy transformed samples
+    for (let i = 0; i < config.size; i++) {
+      invBuf[i] = inv[invStart + i]
+    }
+
+    // Handle overlap-add with previous frame
+    const prevBuf = overlapBuffer.slice(
+      config.size * 2 - MDCT_TAIL_WINDOW_SIZE,
+      config.size * 2
+    )
+    const dstPart = overlapAdd(
+      prevBuf.slice(0, MDCT_TAIL_WINDOW_SIZE),
+      invBuf.slice(0, MDCT_TAIL_WINDOW_SIZE),
+      WINDOW_SHORT
+    )
+
+    overlapBuffer.set(dstPart, 0)
+
+    // Save tail for next frame
+    for (let i = 0; i < MDCT_TAIL_WINDOW_SIZE; i++) {
+      prevBuf[i] = invBuf[MDCT_TAIL_WINDOW_SIZE + i]
+    }
+
+    // Copy main samples
+    const copyLen = bandIndex === 2 ? 240 : 112
+    for (let i = 0; i < copyLen; i++) {
+      overlapBuffer[32 + i] = invBuf[MDCT_TAIL_WINDOW_SIZE + i]
+    }
+
+    // Copy final samples
+    for (let i = 0; i < MDCT_TAIL_WINDOW_SIZE; i++) {
+      overlapBuffer[config.size * 2 - MDCT_TAIL_WINDOW_SIZE + i] =
+        invBuf[config.size - MDCT_TAIL_WINDOW_SIZE + i]
+    }
+
+    return overlapBuffer.slice(0, config.size)
+  }
+
+  /**
+   * Inverse transform using short blocks
+   */
+  function inverseShortBlocks(
+    coeffs,
+    bandIndex,
+    overlapBuffer,
+    bufferPool,
+    config
+  ) {
+    const numBlocks = 1 << (config.size === 256 ? 3 : 2)
+    const invBuf = bufferPool.transformBuffers[MDCT_SIZE_LONG]
+    invBuf.fill(0)
+
+    const prevBuf = overlapBuffer.slice(
+      config.size * 2 - MDCT_TAIL_WINDOW_SIZE,
+      config.size * 2
+    )
+
+    let start = 0
+    let pos = 0
+
+    for (let block = 0; block < numBlocks; block++) {
+      // Extract block coefficients
+      let blockSpecs = coeffs.slice(pos, pos + MDCT_SHORT_BLOCK_SIZE)
+
+      // Unreverse spectral reversal for mid/high bands
+      if (bandIndex > 0) {
+        blockSpecs = reverseSpectrum(blockSpecs, bufferPool.reversalBuffers)
+      }
+
+      // Apply inverse transform
+      const inv = imdct64.transform(blockSpecs, bufferPool.mdctBuffers)
+      const invStart = inv.length / 4
+
+      // Copy to intermediate buffer
+      for (let i = 0; i < MDCT_SHORT_BLOCK_SIZE; i++) {
+        invBuf[start + i] = inv[invStart + i]
+      }
+
+      // Overlap-add with previous block
+      const dstPart = overlapAdd(
+        prevBuf.slice(0, MDCT_TAIL_WINDOW_SIZE),
+        invBuf.slice(start, start + MDCT_TAIL_WINDOW_SIZE),
+        WINDOW_SHORT
+      )
+
+      overlapBuffer.set(dstPart, start)
+
+      // Save tail for next block
+      for (let i = 0; i < MDCT_TAIL_WINDOW_SIZE; i++) {
+        prevBuf[i] = invBuf[start + MDCT_TAIL_WINDOW_SIZE + i]
+      }
+
+      start += MDCT_SHORT_BLOCK_SIZE
+      pos += MDCT_SHORT_BLOCK_SIZE
+    }
+
+    // Copy final tail samples
+    for (let i = 0; i < MDCT_TAIL_WINDOW_SIZE; i++) {
+      overlapBuffer[config.size * 2 - MDCT_TAIL_WINDOW_SIZE + i] =
+        invBuf[config.size - MDCT_TAIL_WINDOW_SIZE + i]
+    }
+
+    return overlapBuffer.slice(0, config.size)
+  }
+
   /**
    * Transform coefficients back to time domain using inverse MDCT
    * @param {Array} input - Dequantization results
@@ -119,80 +294,18 @@ export function imdctStage(context) {
    */
   return (input) => {
     const [coefficients, blockModes] = input
-    const bands = []
 
-    const bandCoeffs = [
-      coefficients.subarray(0, 128),
-      coefficients.subarray(128, 256),
-      coefficients.subarray(256, 512),
-    ]
-
-    for (let band = 0; band < 3; band++) {
-      const bandSize = band === 2 ? 256 : 128
-      const numBlocks = 1 << blockModes[band]
-      const blockSize = numBlocks === 1 ? bandSize : 32
-
-      const imdctFunc =
-        numBlocks === 1 ? (band === 2 ? imdct512 : imdct256) : imdct64
-
-      const invBuf = bufferPool.transformBuffers[MDCT_SIZE_LONG]
-      invBuf.fill(0)
-      const dstBuf = overlapBuffers[band]
-      const prevBuf = dstBuf.slice(bandSize * 2 - 16, bandSize * 2)
-
-      let start = 0
-      let pos = 0
-
-      for (let block = 0; block < numBlocks; block++) {
-        let blockSpecs = bandCoeffs[band].slice(pos, pos + blockSize)
-
-        // Reverse spectral reversal for mid and high bands
-        if (band > 0) {
-          const reversed = bufferPool.reversalBuffers[blockSpecs.length]
-          for (let i = 0; i < blockSpecs.length; i++) {
-            reversed[i] = blockSpecs[blockSpecs.length - 1 - i]
-          }
-          blockSpecs = reversed
-        }
-
-        const inv = imdctFunc.transform(blockSpecs, bufferPool.mdctBuffers)
-        const invStart = inv.length / 4
-
-        for (let i = 0; i < blockSize; i++) {
-          invBuf[start + i] = inv[invStart + i]
-        }
-
-        const dstPart = overlapAdd(
-          prevBuf.slice(0, 16),
-          invBuf.slice(start, start + 16),
-          WINDOW_SHORT
-        )
-
-        dstBuf.set(dstPart, start)
-
-        for (let i = 0; i < 16; i++) {
-          prevBuf[i] = invBuf[start + 16 + i]
-        }
-
-        start += blockSize
-        pos += blockSize
-      }
-
-      if (numBlocks === 1) {
-        const copyLen = band === 2 ? 240 : 112
-        for (let i = 0; i < copyLen; i++) {
-          dstBuf[32 + i] = invBuf[16 + i]
-        }
-      }
-
-      for (let i = 0; i < 16; i++) {
-        dstBuf[bandSize * 2 - 16 + i] = invBuf[bandSize - 16 + i]
-      }
-
-      bands.push(dstBuf.slice(0, bandSize))
-    }
-
-    return bands
+    return MDCT_BAND_CONFIGS.map((config, bandIndex) => {
+      const bandCoeffs = extractBandCoefficients(coefficients, bandIndex)
+      return transformBand(
+        bandCoeffs,
+        bandIndex,
+        blockModes[bandIndex],
+        overlapBuffers[bandIndex],
+        bufferPool,
+        config
+      )
+    })
   }
 }
 
