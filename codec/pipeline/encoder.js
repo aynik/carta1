@@ -130,39 +130,21 @@ export function blockSelectorStage(context) {
    */
   return (input) => {
     const { bands } = input
-    const [lowBand, midBand, highBand] = bands
-
-    const lowCoeffs = performFFT(lowBand, FFT_SIZE_LOW)
-    const midCoeffs = performFFT(midBand, FFT_SIZE_MID)
-    const highCoeffs = performFFT(highBand, FFT_SIZE_HIGH)
-
-    const lowTransient = detectTransient(
-      lowCoeffs,
-      bufferPool.transientDetection.prevLowCoeffs,
-      options.transientThresholdLow
-    )
-    const midTransient = detectTransient(
-      midCoeffs,
-      bufferPool.transientDetection.prevMidCoeffs,
-      options.transientThresholdMid
-    )
-    const highTransient = detectTransient(
-      highCoeffs,
-      bufferPool.transientDetection.prevHighCoeffs,
-      options.transientThresholdHigh
-    )
-
-    bufferPool.transientDetection.prevLowCoeffs = lowCoeffs
-    bufferPool.transientDetection.prevMidCoeffs = midCoeffs
-    bufferPool.transientDetection.prevHighCoeffs = highCoeffs
+    const fftSizes = [FFT_SIZE_LOW, FFT_SIZE_MID, FFT_SIZE_HIGH]
+    const blockModes = bands.map((bandSamples, bandIndex) => {
+      const coeffs = performFFT(bandSamples, fftSizes[bandIndex])
+      const transient = detectTransient(
+        coeffs,
+        bufferPool.transientDetection[bandIndex],
+        options.transientThresholdLow
+      )
+      bufferPool.transientDetection[bandIndex] = coeffs
+      return transient * Math.max(bandIndex + 1, 2)
+    })
 
     return {
       bands,
-      blockModes: [
-        lowTransient ? 2 : 0,
-        midTransient ? 2 : 0,
-        highTransient ? 3 : 0,
-      ],
+      blockModes,
     }
   }
 }

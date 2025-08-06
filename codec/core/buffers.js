@@ -40,11 +40,11 @@ export class BufferPool {
     }
 
     // Transient detector
-    this.transientDetection = {
-      prevLowCoeffs: new Float32Array(64),
-      prevMidCoeffs: new Float32Array(64),
-      prevHighCoeffs: new Float32Array(128),
-    }
+    this.transientDetection = [
+      new Float32Array(64),
+      new Float32Array(64),
+      new Float32Array(128),
+    ]
 
     // MDCT/IMDCT work buffers
     this.mdctBuffers = {
