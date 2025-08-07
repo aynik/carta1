@@ -56,7 +56,7 @@ export class MDCT extends MDCTBase {
     const buffers = mdctBuffers?.[this.fftSize]
     const real = buffers?.real ?? throwError('mdct: real is required')
     const imag = buffers?.imag ?? throwError('mdct: imag is required')
-    const out = output ?? throwError('mdct: output is required')
+    if (!output) throwError('mdct: output is required')
 
     const n4 = this.quarterSize
     const n34 = 3 * n4
@@ -105,11 +105,11 @@ export class MDCT extends MDCTBase {
       const re = real[i]
       const im = imag[i]
 
-      out[i * 2] = -re * c - im * s
-      out[this.halfSize - 1 - i * 2] = -re * s + im * c
+      output[i * 2] = -re * c - im * s
+      output[this.halfSize - 1 - i * 2] = -re * s + im * c
     }
 
-    return out
+    return output
   }
 }
 
