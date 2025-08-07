@@ -24,9 +24,10 @@ describe('MDCT and IMDCT', () => {
       }
 
       // Transform all frames
-      const mdctFrames = frames.map((frame) =>
-        mdct.transform(frame, bufferPool.mdctBuffers)
-      )
+      const mdctFrames = frames.map((frame) => {
+        const output = new Float32Array(mdct.halfSize)
+        return mdct.transform(frame, bufferPool.mdctBuffers, output)
+      })
 
       // Inverse transform all frames
       const imdctFrames = mdctFrames.map((coeffs) =>

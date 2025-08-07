@@ -132,13 +132,16 @@ export function blockSelectorStage(context) {
     const { bands } = input
     const fftSizes = [FFT_SIZE_LOW, FFT_SIZE_MID, FFT_SIZE_HIGH]
     const blockModes = bands.map((bandSamples, bandIndex) => {
-      const coeffs = performFFT(bandSamples, fftSizes[bandIndex])
+      const fftSize = fftSizes[bandIndex]
+      const fftBuffers = bufferPool.fftWorkBuffers[fftSize]
+      const coeffs = performFFT(bandSamples, fftSize, fftBuffers)
       const transient = detectTransient(
         coeffs,
         bufferPool.transientDetection[bandIndex],
         options.transientThresholdLow
       )
-      bufferPool.transientDetection[bandIndex] = coeffs
+      // Copy the new coefficients to the persistent buffer for the next frame
+      bufferPool.transientDetection[bandIndex].set(coeffs)
       return transient * Math.max(bandIndex + 1, 2)
     })
 
@@ -232,7 +235,12 @@ export function mdctStage(context) {
     mdctInput.set(samples, config.windowStart + MDCT_OVERLAP_SIZE)
 
     // Transform
-    let spectrum = transformFunc.transform(mdctInput, bufferPool.mdctBuffers)
+    const outBuff = bufferPool.mdctOutput[transformFunc.halfSize]
+    let spectrum = transformFunc.transform(
+      mdctInput,
+      bufferPool.mdctBuffers,
+      outBuff
+    )
 
     // Apply spectral reversal for mid/high bands
     if (bandIndex > 0) {
@@ -253,7 +261,7 @@ export function mdctStage(context) {
     bufferPool
   ) {
     const numBlocks = 1 << (config.size === 256 ? 3 : 2) // 8 for band 2, 4 for bands 0-1
-    const output = new Float32Array(config.size)
+    const output = bufferPool.shortBlockOutput
 
     for (let block = 0; block < numBlocks; block++) {
       const blockStart = block * MDCT_SHORT_BLOCK_SIZE
@@ -272,7 +280,12 @@ export function mdctStage(context) {
       mdctInput.set(blockSamples, MDCT_OVERLAP_SIZE)
 
       // Transform
-      let spectrum = mdct64.transform(mdctInput, bufferPool.mdctBuffers)
+      const outBuff = bufferPool.mdctOutput[mdct64.halfSize]
+      let spectrum = mdct64.transform(
+        mdctInput,
+        bufferPool.mdctBuffers,
+        outBuff
+      )
 
       // Apply spectral reversal for mid/high bands
       if (bandIndex > 0) {

@@ -46,6 +46,20 @@ export class BufferPool {
       new Float32Array(128),
     ]
 
+    // FFT work buffers
+    this.fftWorkBuffers = {
+      128: {
+        real: new Float32Array(128),
+        imag: new Float32Array(128),
+        magnitude: new Float32Array(64),
+      },
+      256: {
+        real: new Float32Array(256),
+        imag: new Float32Array(256),
+        magnitude: new Float32Array(128),
+      },
+    }
+
     // MDCT/IMDCT work buffers
     this.mdctBuffers = {
       16: {
@@ -61,6 +75,14 @@ export class BufferPool {
         imag: new Float32Array(128),
       },
     }
+
+    this.mdctOutput = {
+      32: new Float32Array(32),
+      128: new Float32Array(128),
+      256: new Float32Array(256),
+    }
+
+    this.shortBlockOutput = new Float32Array(256)
 
     // MDCT overlap buffers (encoder)
     this.mdctOverlap = [

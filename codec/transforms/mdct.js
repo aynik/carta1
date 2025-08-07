@@ -48,13 +48,15 @@ export class MDCT extends MDCTBase {
   /**
    * Perform forward MDCT transform
    * @param {Float32Array} input - Time-domain input samples
-   * @param {Object} mdctBuffers - Optional work buffers for FFT
+   * @param {Object} mdctBuffers - Work buffers for FFT
+   * @param {Float32Array} output - Output buffer
    * @returns {Float32Array} Frequency-domain MDCT coefficients
    */
-  transform(input, mdctBuffers = null) {
+  transform(input, mdctBuffers, output) {
     const buffers = mdctBuffers?.[this.fftSize]
     const real = buffers?.real ?? throwError('mdct: real is required')
     const imag = buffers?.imag ?? throwError('mdct: imag is required')
+    const out = output ?? throwError('mdct: output is required')
 
     const n4 = this.quarterSize
     const n34 = 3 * n4
@@ -97,18 +99,17 @@ export class MDCT extends MDCTBase {
     FFT.fft(real, imag)
 
     // Post-FFT processing
-    const output = new Float32Array(this.halfSize)
     for (let i = 0; i < this.fftSize; i++) {
       const c = this.sinCosTable[i * 2]
       const s = this.sinCosTable[i * 2 + 1]
       const re = real[i]
       const im = imag[i]
 
-      output[i * 2] = -re * c - im * s
-      output[this.halfSize - 1 - i * 2] = -re * s + im * c
+      out[i * 2] = -re * c - im * s
+      out[this.halfSize - 1 - i * 2] = -re * s + im * c
     }
 
-    return output
+    return out
   }
 }
 

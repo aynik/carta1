@@ -7,18 +7,29 @@
  */
 
 import { FFT } from '../transforms/fft.js'
+import { throwError } from '../utils.js'
 
 /**
  * Perform FFT on time-domain samples and return magnitude spectrum
  * @param {Float32Array} samples - Time-domain samples
  * @param {number} fftSize - FFT size (must be power of 2)
+ * @param {object} buffers - Pre-allocated buffers to reduce GC
+ * @param {Float32Array} buffers.real - Real part buffer
+ * @param {Float32Array} buffers.imag - Imaginary part buffer
+ * @param {Float32Array} buffers.magnitude - Magnitude output buffer
  * @returns {Float32Array} Magnitude spectrum (positive frequencies only)
  */
-export function performFFT(samples, fftSize) {
-  const real = new Float32Array(fftSize)
-  const imag = new Float32Array(fftSize)
+export function performFFT(samples, fftSize, buffers) {
+  const real =
+    buffers?.real ?? throwError('performFFT: real buffer is required')
+  const imag =
+    buffers?.imag ?? throwError('performFFT: imag buffer is required')
+  const magnitude =
+    buffers?.magnitude ?? throwError('performFFT: magnitude buffer is required')
 
-  // Copy samples with zero-padding if necessary
+  // Clear buffers and copy samples with zero-padding
+  real.fill(0)
+  imag.fill(0)
   const copyLen = Math.min(samples.length, fftSize)
   real.set(samples.subarray(0, copyLen))
 
@@ -26,8 +37,8 @@ export function performFFT(samples, fftSize) {
   FFT.fft(real, imag)
 
   // Calculate magnitude spectrum for positive frequencies
-  const magnitude = new Float32Array(fftSize / 2)
-  for (let i = 0; i < fftSize / 2; i++) {
+  const halfSize = fftSize / 2
+  for (let i = 0; i < halfSize; i++) {
     magnitude[i] = Math.sqrt(real[i] * real[i] + imag[i] * imag[i])
   }
 

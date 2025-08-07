@@ -3,12 +3,19 @@ import { performFFT, detectTransient } from '../codec/analysis/transient'
 import { TEST_SIGNALS } from './testSignals'
 import { SAMPLES_PER_FRAME } from '../codec/core/constants'
 
+const createFftBuffers = (size) => ({
+  real: new Float32Array(size),
+  imag: new Float32Array(size),
+  magnitude: new Float32Array(size / 2),
+})
+
 describe('Transient Detection', () => {
   describe('performFFT', () => {
     it('should return a correct magnitude spectrum', () => {
       const size = 256
       const signal = TEST_SIGNALS.sine(1000, 44100, size)
-      const magnitude = performFFT(signal, size)
+      const buffers = createFftBuffers(size)
+      const magnitude = performFFT(signal, size, buffers)
 
       expect(magnitude.length).toBe(size / 2)
       // A simple check for energy concentration in the spectrum
@@ -21,18 +28,33 @@ describe('Transient Detection', () => {
   describe('detectTransient', () => {
     it('should detect a step function', () => {
       const size = 512
-      const prevCoeffs = performFFT(TEST_SIGNALS.silence(size), size)
-      const currentCoeffs = performFFT(TEST_SIGNALS.step(0, size), size)
+      const buffers = createFftBuffers(size)
+      const prevCoeffs = performFFT(
+        TEST_SIGNALS.silence(size),
+        size,
+        buffers
+      ).slice()
+      const currentCoeffs = performFFT(
+        TEST_SIGNALS.step(0, size),
+        size,
+        buffers
+      )
       const isTransient = detectTransient(currentCoeffs, prevCoeffs, 0.1)
       expect(isTransient).toBe(true)
     })
 
     it('should ignore a steady state signal', () => {
       const size = 512
-      const prevCoeffs = performFFT(TEST_SIGNALS.sine(440, 44100, size), size)
+      const buffers = createFftBuffers(size)
+      const prevCoeffs = performFFT(
+        TEST_SIGNALS.sine(440, 44100, size),
+        size,
+        buffers
+      )
       const currentCoeffs = performFFT(
         TEST_SIGNALS.sine(440, 44100, size),
-        size
+        size,
+        buffers
       )
       const isTransient = detectTransient(currentCoeffs, prevCoeffs, 0.1)
       expect(isTransient).toBe(false)
@@ -40,12 +62,21 @@ describe('Transient Detection', () => {
 
     it('should have a higher spectral flux for transients', () => {
       const size = 512
-      const silentCoeffs = performFFT(TEST_SIGNALS.silence(size), size)
-      const stepCoeffs = performFFT(TEST_SIGNALS.step(0, size), size)
-      const sineCoeffs = performFFT(TEST_SIGNALS.sine(440, 44100, size), size)
+      const buffers = createFftBuffers(size)
+      const silentCoeffs = performFFT(
+        TEST_SIGNALS.silence(size),
+        size,
+        buffers
+      ).slice()
+      const stepCoeffs = performFFT(TEST_SIGNALS.step(0, size), size, buffers)
+      const sineCoeffs = performFFT(
+        TEST_SIGNALS.sine(440, 44100, size),
+        size,
+        buffers
+      ).slice()
 
       const transientScore = detectTransient(stepCoeffs, silentCoeffs, 0.01)
-      const steadyScore = detectTransient(sineCoeffs, sineCoeffs, 0.01)
+      const steadyScore = detectTransient(stepCoeffs, sineCoeffs, 0.01)
 
       expect(transientScore).toBe(true)
       expect(steadyScore).toBe(false)
@@ -53,8 +84,17 @@ describe('Transient Detection', () => {
 
     it('should be sensitive to the threshold', () => {
       const size = 512
-      const prevCoeffs = performFFT(TEST_SIGNALS.silence(size), size)
-      const currentCoeffs = performFFT(TEST_SIGNALS.step(0, size), size)
+      const buffers = createFftBuffers(size)
+      const prevCoeffs = performFFT(
+        TEST_SIGNALS.silence(size),
+        size,
+        buffers
+      ).slice()
+      const currentCoeffs = performFFT(
+        TEST_SIGNALS.step(0, size),
+        size,
+        buffers
+      )
 
       const isTransientLowThreshold = detectTransient(
         currentCoeffs,
@@ -208,13 +248,22 @@ describe('Transient Detection', () => {
 
         signals.forEach(({ type, create, shouldTrigger }) => {
           it(`should ${shouldTrigger ? 'detect' : 'not detect'} ${type} as transient with normal threshold`, () => {
+            const buffers = createFftBuffers(fftSize)
             // Establish baseline with silence
             const baselineSignal = new Float32Array(fftSize)
-            const baselineCoeffs = performFFT(baselineSignal, fftSize)
+            const baselineCoeffs = performFFT(
+              baselineSignal,
+              fftSize,
+              buffers
+            ).slice()
 
             // Test signal
             const testSignal = create()
-            const testCoeffs = performFFT(testSignal.slice(0, fftSize), fftSize)
+            const testCoeffs = performFFT(
+              testSignal.slice(0, fftSize),
+              fftSize,
+              buffers
+            )
 
             const isTransient = detectTransient(
               testCoeffs,
@@ -228,7 +277,7 @@ describe('Transient Detection', () => {
                 SAMPLES_PER_FRAME / 2,
                 SAMPLES_PER_FRAME / 2 + fftSize
               )
-              const burstCoeffs = performFFT(burstPart, fftSize)
+              const burstCoeffs = performFFT(burstPart, fftSize, buffers)
               const isTransientLow = detectTransient(
                 burstCoeffs,
                 baselineCoeffs,
@@ -244,9 +293,18 @@ describe('Transient Detection', () => {
           it(`should handle ${type} in continuous stream`, () => {
             const signal1 = create()
             const signal2 = create()
+            const buffers = createFftBuffers(fftSize)
 
-            const coeffs1 = performFFT(signal1.slice(0, fftSize), fftSize)
-            const coeffs2 = performFFT(signal2.slice(0, fftSize), fftSize)
+            const coeffs1 = performFFT(
+              signal1.slice(0, fftSize),
+              fftSize,
+              buffers
+            )
+            const coeffs2 = performFFT(
+              signal2.slice(0, fftSize),
+              fftSize,
+              buffers
+            )
 
             // Same signal should not trigger transient
             const isTransient = detectTransient(
@@ -259,16 +317,21 @@ describe('Transient Detection', () => {
         })
 
         it(`should detect transition from tone to burst in ${band} band`, () => {
+          const buffers = createFftBuffers(fftSize)
           // Start with a tone
           const toneFreq = band === 'low' ? 1000 : band === 'mid' ? 7000 : 15000
           const toneSignal = TEST_SIGNALS.sine(toneFreq, 44100, fftSize)
-          const toneCoeffs = performFFT(toneSignal, fftSize)
+          const toneCoeffs = performFFT(toneSignal, fftSize, buffers).slice()
 
           // Transition to burst
           const burstSignal = signals
             .find((s) => s.type.includes('burst'))
             .create()
-          const burstCoeffs = performFFT(burstSignal.slice(0, fftSize), fftSize)
+          const burstCoeffs = performFFT(
+            burstSignal.slice(0, fftSize),
+            fftSize,
+            buffers
+          )
 
           // Test that transitions are detected with appropriate thresholds
           const testThreshold = band === 'high' ? 0.9 : 0.09
@@ -284,7 +347,12 @@ describe('Transient Detection', () => {
 
     it('should handle edge cases gracefully', () => {
       const size = 256
-      const coeffs = performFFT(TEST_SIGNALS.sine(1000, 44100, size), size)
+      const buffers = createFftBuffers(size)
+      const coeffs = performFFT(
+        TEST_SIGNALS.sine(1000, 44100, size),
+        size,
+        buffers
+      )
 
       // No previous coefficients
       expect(detectTransient(coeffs, null, 10)).toBe(false)
