@@ -552,7 +552,7 @@ async function dumpFile(inputFile, outputFile, options) {
           offset: offset,
           offsetHex: '0x' + offset.toString(16),
           nBfu: frame.nBfu,
-          blockSizeMode: frame.blockSizeMode,
+          blockModes: frame.blockModes,
           scaleFactorIndices: Array.from(frame.scaleFactorIndices),
           wordLengthIndices: Array.from(frame.wordLengthIndices),
           hasNonZeroScaleFactors: frame.scaleFactorIndices.some((sf) => sf > 0),

@@ -22,7 +22,7 @@ export function qmfAnalysis(input, delayLine, qmfWorkBuffers = null) {
 
   const workBuffer =
     qmfWorkBuffers?.delay?.[inputLength] ??
-    throwError('qmfAnalysis: workBuffer is required')
+    throwError(`qmfAnalysis: qmfWorkBuffers.delay[${inputLength}] is required`)
   workBuffer.set(delayLine)
   workBuffer.set(input, delayLine.length)
 
@@ -68,7 +68,9 @@ export function qmfSynthesis(
 
   const workBuffer =
     qmfWorkBuffers?.delay?.[outputLength] ??
-    throwError('qmfSynthesis: workBuffer is required')
+    throwError(
+      `qmfSynthesis: qmfWorkBuffers.delay[${outputLength}] is required`
+    )
   workBuffer.set(delayLine)
 
   // Upsample and merge

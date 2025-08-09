@@ -32,7 +32,7 @@ import { packBits, unpackBits, unpackSignedBits } from './bitstream.js'
  * Serializes encoded frame data into binary format
  * @param {Object} frameData - The encoded frame data to serialize
  * @param {number} frameData.nBfu - Number of block floating units
- * @param {number[]} frameData.blockSizeMode - Block size mode for each band [0-2]
+ * @param {number[]} frameData.blockModes - Block modes for each band [0-2]
  * @param {Int32Array} frameData.scaleFactorIndices - Scale factor indices for each BFU
  * @param {Int32Array} frameData.wordLengthIndices - Word length indices for each BFU
  * @param {Int32Array[]} frameData.quantizedCoefficients - Quantized spectral coefficients
@@ -45,9 +45,9 @@ export function serializeFrame(frameData) {
   // Pack header (16 bits)
   const bfuIndex = BFU_AMOUNTS.indexOf(frameData.nBfu)
   const header =
-    ((2 - frameData.blockSizeMode[0]) << 14) |
-    ((2 - frameData.blockSizeMode[1]) << 12) |
-    ((3 - frameData.blockSizeMode[2]) << 10) |
+    ((2 - frameData.blockModes[0]) << 14) |
+    ((2 - frameData.blockModes[1]) << 12) |
+    ((3 - frameData.blockModes[2]) << 10) |
     (bfuIndex << 5)
 
   view.setUint16(0, header, false)
@@ -102,7 +102,7 @@ export function serializeFrame(frameData) {
  * @param {Uint8Array} buffer - Binary frame data buffer
  * @returns {Object} Deserialized frame data
  * @returns {number} returns.nBfu - Number of block floating units
- * @returns {number[]} returns.blockSizeMode - Block size mode for each band
+ * @returns {number[]} returns.blockModes - Block modes for each band
  * @returns {Int32Array} returns.scaleFactorIndices - Scale factor indices for each BFU
  * @returns {Int32Array} returns.wordLengthIndices - Word length indices for each BFU
  * @returns {Int32Array[]} returns.quantizedCoefficients - Quantized spectral coefficients
@@ -117,7 +117,7 @@ export function deserializeFrame(buffer) {
 
   // Unpack header
   const header = view.getUint16(0, false)
-  const blockSizeMode = [
+  const blockModes = [
     2 - ((header >> 14) & 3),
     2 - ((header >> 12) & 3),
     3 - ((header >> 10) & 3),
@@ -171,7 +171,7 @@ export function deserializeFrame(buffer) {
     scaleFactorIndices,
     wordLengthIndices,
     quantizedCoefficients,
-    blockSizeMode,
+    blockModes,
   }
 }
 

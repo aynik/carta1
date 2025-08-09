@@ -286,7 +286,7 @@ export class AudioProcessor {
   static _createDummyFrame() {
     return {
       nBfu: 0,
-      blockSizeMode: [0, 0, 0],
+      blockModes: [0, 0, 0],
       scaleFactorIndices: new Int32Array(0),
       wordLengthIndices: new Int32Array(0),
       quantizedCoefficients: [],

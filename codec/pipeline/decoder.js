@@ -57,10 +57,10 @@ export function dequantizationStage() {
    * @param {Int32Array} frameData.scaleFactorIndices - Scale factor indices for each BFU
    * @param {Int32Array} frameData.wordLengthIndices - Word length indices for each BFU
    * @param {Array<Int32Array>} frameData.quantizedCoefficients - Quantized coefficient data
-   * @param {Array<number>} frameData.blockSizeMode - Block size mode for each band
-   * @returns {Array} Dequantization results [coefficients, blockModes]
-   * @returns {Float32Array} returns[0] - Reconstructed MDCT coefficients (512 samples)
-   * @returns {Array<number>} returns[1] - Block mode indices for each band
+   * @param {Array<number>} frameData.blockModes - Block modes for each band
+   * @returns {Object} Dequantization results
+   * @returns {Float32Array} returns.coefficients - Reconstructed MDCT coefficients (512 samples)
+   * @returns {Array<number>} returns.blockModes - Block modes for each band
    */
   return (frameData) => {
     const coefficients = new Float32Array(512)
@@ -69,7 +69,7 @@ export function dequantizationStage() {
       scaleFactorIndices,
       wordLengthIndices,
       quantizedCoefficients,
-      blockSizeMode,
+      blockModes,
     } = frameData
 
     for (let bfu = 0; bfu < nBfu; bfu++) {
@@ -79,7 +79,7 @@ export function dequantizationStage() {
       if (bfu >= BFU_BAND_BOUNDARIES[0]) band = 1
       if (bfu >= BFU_BAND_BOUNDARIES[1]) band = 2
 
-      const isLongBlock = blockSizeMode[band] === 0
+      const isLongBlock = blockModes[band] === 0
       const position = isLongBlock ? BFU_START_LONG[bfu] : BFU_START_SHORT[bfu]
 
       if (bitsPerSample > 0) {
@@ -93,7 +93,7 @@ export function dequantizationStage() {
       }
     }
 
-    return [coefficients, blockSizeMode]
+    return { coefficients, blockModes }
   }
 }
 
@@ -287,13 +287,13 @@ export function imdctStage(context) {
 
   /**
    * Transform coefficients back to time domain using inverse MDCT
-   * @param {Array} input - Dequantization results
-   * @param {Float32Array} input[0] - MDCT coefficients (512 samples)
-   * @param {Array<number>} input[1] - Block mode indices for each band
+   * @param {Object} input - Dequantization results
+   * @param {Float32Array} input.coefficients - MDCT coefficients (512 samples)
+   * @param {Array<number>} input.blockModes - Block modes for each band
    * @returns {Array<Float32Array>} Three reconstructed frequency bands [low, mid, high]
    */
   return (input) => {
-    const [coefficients, blockModes] = input
+    const { coefficients, blockModes } = input
 
     return MDCT_BAND_CONFIGS.map((config, bandIndex) => {
       const bandCoeffs = extractBandCoefficients(coefficients, bandIndex)

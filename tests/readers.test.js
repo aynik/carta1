@@ -10,7 +10,7 @@ describe('AeaReader', () => {
   beforeEach(() => {
     const createMockFrameData = () => ({
       nBfu: 52,
-      blockSizeMode: [0, 0, 0],
+      blockModes: [0, 0, 0],
       scaleFactorIndices: new Int32Array(52).fill(10),
       wordLengthIndices: new Int32Array(52).fill(8),
       quantizedCoefficients: new Array(52)

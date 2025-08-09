@@ -126,7 +126,7 @@ export function blockSelectorStage(context) {
    * @param {Array<Float32Array>} input.bands - Three frequency bands [low, mid, high]
    * @returns {Object} Block selection results
    * @returns {Array<Float32Array>} returns.bands - Original frequency bands
-   * @returns {Array<number>} returns.blockModes - Block mode indices for each band
+   * @returns {Array<number>} returns.blockModes - Block modes for each band
    */
   return (input) => {
     const { bands } = input
@@ -298,12 +298,12 @@ export function mdctStage(context) {
    * Transform frequency bands using MDCT
    * @param {Object} input - Block selection results
    * @param {Array<Float32Array>} input.bands - Three frequency bands
-   * @param {Array<number>} input.blockModes - Block mode indices for each band
+   * @param {Array<number>} input.blockModes - Block modes for each band
    * @param {any} input.originalFrame - Original frame data (passed through)
    * @returns {Object} MDCT transform results
    * @returns {Array<Float32Array>} returns.bands - Original frequency bands
    * @returns {Float32Array} returns.coefficients - MDCT coefficients (512 samples)
-   * @returns {Array<number>} returns.blockModes - Block mode indices
+   * @returns {Array<number>} returns.blockModes - Block modes
    * @returns {any} returns.originalFrame - Original frame data
    */
   return (input) => {
@@ -356,13 +356,13 @@ export function quantizationStage(context) {
    * Perform psychoacoustic analysis and quantization
    * @param {Object} input - MDCT transform results
    * @param {Float32Array} input.coefficients - MDCT coefficients
-   * @param {Array<number>} input.blockModes - Block mode indices
+   * @param {Array<number>} input.blockModes - Block modes
    * @returns {Object} Quantization results ready for bitstream encoding
    * @returns {number} returns.nBfu - Number of active BFUs
    * @returns {Int32Array} returns.scaleFactorIndices - Scale factor indices for each BFU
    * @returns {Int32Array} returns.wordLengthIndices - Word length indices for each BFU
    * @returns {Array<Int32Array>} returns.quantizedCoefficients - Quantized coefficient data
-   * @returns {Array<number>} returns.blockSizeMode - Block size mode for each band
+   * @returns {Array<number>} returns.blockModes - Block modes for each band
    */
   return (input) => {
     const { coefficients, blockModes } = input
@@ -399,7 +399,7 @@ export function quantizationStage(context) {
       scaleFactorIndices,
       wordLengthIndices: allocation.slice(0, selectedBfuCount),
       quantizedCoefficients,
-      blockSizeMode: blockModes,
+      blockModes,
     }
   }
 }

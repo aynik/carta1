@@ -13,7 +13,7 @@ import {
 describe('Serialization', () => {
   const createMockFrameData = () => ({
     nBfu: 52,
-    blockSizeMode: [0, 0, 0],
+    blockModes: [0, 0, 0],
     scaleFactorIndices: new Int32Array(52).fill(10),
     wordLengthIndices: new Int32Array(52).fill(8),
     quantizedCoefficients: new Array(52)
@@ -28,7 +28,7 @@ describe('Serialization', () => {
       const deserialized = deserializeFrame(buffer)
 
       expect(deserialized.nBfu).toBe(frameData.nBfu)
-      expect(deserialized.blockSizeMode).toEqual(frameData.blockSizeMode)
+      expect(deserialized.blockModes).toEqual(frameData.blockModes)
       expect(deserialized.scaleFactorIndices).toEqual(
         frameData.scaleFactorIndices
       )

@@ -52,9 +52,19 @@ export class MDCT extends MDCTBase {
    * @returns {Float32Array} Frequency-domain MDCT coefficients
    */
   transform(input, mdctBuffers = null) {
-    const buffers = mdctBuffers?.[this.fftSize]
-    const real = buffers?.real ?? throwError('mdct: real is required')
-    const imag = buffers?.imag ?? throwError('mdct: imag is required')
+    const buffers =
+      mdctBuffers?.[this.fftSize] ??
+      throwError(`MDCT.transform: mdctBuffers[${this.fftSize}] is required`)
+    const real =
+      buffers?.real ??
+      throwError(
+        `MDCT.transform: mdctBuffers[${this.fftSize}].real is required`
+      )
+    const imag =
+      buffers?.imag ??
+      throwError(
+        `MDCT.transform: mdctBuffers[${this.fftSize}].imag is required`
+      )
 
     const n4 = this.quarterSize
     const n34 = 3 * n4
@@ -127,9 +137,19 @@ export class IMDCT extends MDCTBase {
    * @returns {Float32Array} Time-domain output samples
    */
   transform(input, mdctBuffers = null) {
-    const buffers = mdctBuffers?.[this.fftSize]
-    const real = buffers?.real ?? throwError('imdct: real is required')
-    const imag = buffers?.imag ?? throwError('imdct: imag is required')
+    const buffers =
+      mdctBuffers?.[this.fftSize] ??
+      throwError(`IMDCT.transform: mdctBuffers[${this.fftSize}] is required`)
+    const real =
+      buffers?.real ??
+      throwError(
+        `IMDCT.transform: mdctBuffers[${this.fftSize}].real is required`
+      )
+    const imag =
+      buffers?.imag ??
+      throwError(
+        `IMDCT.transform: mdctBuffers[${this.fftSize}].imag is required`
+      )
 
     const n4 = this.quarterSize
     const n34 = 3 * n4

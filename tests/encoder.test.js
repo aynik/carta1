@@ -78,12 +78,12 @@ describe('Encoder Pipeline', () => {
     const result = encoder(transientFrame)
 
     // Check if this frame or the next one uses short blocks
-    let usesShortBlocks = result.blockSizeMode.some((mode) => mode !== 0)
+    let usesShortBlocks = result.blockModes.some((mode) => mode !== 0)
 
     if (!usesShortBlocks) {
       // Sometimes the short blocks appear in the next frame
       const nextResult = encoder(silentFrame)
-      usesShortBlocks = nextResult.blockSizeMode.some((mode) => mode !== 0)
+      usesShortBlocks = nextResult.blockModes.some((mode) => mode !== 0)
     }
 
     // With lower thresholds, the transient should trigger short blocks

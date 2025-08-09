@@ -73,7 +73,7 @@ describe('Decoder Pipeline', () => {
       quantizedCoefficients: new Array(52)
         .fill(0)
         .map(() => new Int32Array(10).fill(1)),
-      blockSizeMode: [1, 1, 1], // All short blocks
+      blockModes: [1, 1, 1], // All short blocks
     }
 
     const decoded = decoder(encoded)
@@ -87,7 +87,7 @@ describe('Decoder Pipeline', () => {
       scaleFactorIndices: new Int32Array(52).fill(0),
       wordLengthIndices: new Int32Array(52).fill(0), // All zero word length
       quantizedCoefficients: new Array(52).fill(0).map(() => new Int32Array(0)),
-      blockSizeMode: [0, 0, 0],
+      blockModes: [0, 0, 0],
     }
 
     const decoded = decoder(encoded)
