@@ -117,43 +117,6 @@ export const QMF_ODD = (() => {
   return odd
 })()
 
-// Bit allocation
-export const INTERPOLATION_COMPENSATION_FACTOR = 0.25
-
-// Quantization
-export const MAX_WORD_LENGTH_INDEX = 15
-export const WORD_LENGTH_BITS = new Int32Array([
-  0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
-])
-export const QUANT_DISTORTION_TABLE = (() => {
-  const table = new Float32Array(MAX_WORD_LENGTH_INDEX + 1)
-  table[0] = 1.0
-  for (let wl = 1; wl <= MAX_WORD_LENGTH_INDEX; wl++) {
-    const bitsPerSample = WORD_LENGTH_BITS[wl]
-    const quantRange = (1 << (bitsPerSample - 1)) - 1
-    table[wl] = 1.0 / (12.0 * quantRange * quantRange)
-  }
-  return table
-})()
-export const DISTORTION_DELTA_DB = (() => {
-  const table = new Float32Array(MAX_WORD_LENGTH_INDEX)
-  for (let i = 0; i < MAX_WORD_LENGTH_INDEX; i++) {
-    table[i] =
-      10 *
-      Math.log10(
-        QUANT_DISTORTION_TABLE[i + 1] / (QUANT_DISTORTION_TABLE[i] || 1.0)
-      )
-  }
-  return table
-})()
-export const SCALE_FACTORS = (() => {
-  const table = new Float32Array(64)
-  for (let i = 0; i < 64; i++) {
-    table[i] = Math.pow(2.0, i / 3.0 - 21)
-  }
-  return table
-})()
-
 // Psychoacoustic model
 export const BARK_SCALE = (() => {
   const table = new Float32Array(NUM_BFUS)
@@ -191,6 +154,8 @@ export const SPREADING_MATRIX = (() => {
 // ISO/IEC 11172-3:1993 Psychoacoustic Model Constants
 export const PSYMODEL_MIN_POWER_DB = -200
 export const PSYMODEL_FFT_SIZE = 2048
+export const PSYMODEL_HALF_FFT_SIZE = PSYMODEL_FFT_SIZE >>> 1
+export const PSYMODEL_NUM_BINS = PSYMODEL_HALF_FFT_SIZE + 1
 
 // Pre-computes lookup tables for resampling the MDCT power spectrum into a PSD.
 // For each PSD bin, these tables provide the two source MDCT indices and the
@@ -340,3 +305,94 @@ export const PSYMODEL_FREQ_TO_CB_MAP = new Uint8Array([
   105, 105, 105, 105, 105, 105, 105, 105, 105, 105, 105, 105, 105, 105, 105,
   105,
 ])
+
+// Tonal detection neighbor offset patterns for different frequency ranges
+// These avoid per-iteration array allocations during tonal masker detection
+export const PSYMODEL_TONAL_OFFSETS_LOW_FREQ = Int8Array.of(-2, 2)
+export const PSYMODEL_TONAL_OFFSETS_MID_FREQ = Int8Array.of(-3, -2, 2, 3)
+export const PSYMODEL_TONAL_OFFSETS_HIGH_FREQ = Int8Array.of(-6, -5, -4, -3, -2 , 2, 3, 4, 5, 6) // prettier-ignore
+
+// Bit allocation
+export const INTERPOLATION_COMPENSATION_FACTOR = 0.25
+
+/**
+ * Precomputed interpolation data for psychoacoustic mask interpolation
+ * Creates lookup table for interpolating psychoacoustic mask values across BFUs
+ */
+export const BFU_MASK_INTERPOLATION_TABLE = (() => {
+  const interpolationEntries = new Array(NUM_BFUS)
+  const frequencyPerBin = SAMPLE_RATE / PSYMODEL_FFT_SIZE
+  const criticalBandIndices = PSYMODEL_CB_FREQ_INDICES
+
+  for (let bfuIndex = 0; bfuIndex < NUM_BFUS; bfuIndex++) {
+    const fftBinIndex = Math.round(BFU_FREQUENCIES[bfuIndex] / frequencyPerBin)
+
+    // Find critical band index using binary search
+    let lowIndex = 0
+    let highIndex = criticalBandIndices.length - 1
+
+    while (lowIndex < highIndex) {
+      const midIndex = (lowIndex + highIndex + 1) >> 1
+      if (criticalBandIndices[midIndex] <= fftBinIndex) {
+        lowIndex = midIndex
+      } else {
+        highIndex = midIndex - 1
+      }
+    }
+
+    const currentBandIndex = lowIndex
+    const nextBandIndex = Math.min(
+      currentBandIndex + 1,
+      criticalBandIndices.length - 1
+    )
+    const currentBandFreq = criticalBandIndices[currentBandIndex]
+    const nextBandFreq = criticalBandIndices[nextBandIndex]
+    const bandWidth = nextBandFreq - currentBandFreq || 1
+    const inverseBandWidth = 1 / bandWidth
+
+    interpolationEntries[bfuIndex] = {
+      band: currentBandIndex,
+      next: nextBandIndex,
+      x0: currentBandFreq,
+      y0: currentBandIndex,
+      y1: nextBandIndex,
+      tInv: inverseBandWidth,
+    }
+  }
+
+  return interpolationEntries
+})()
+
+// Quantization
+export const MAX_WORD_LENGTH_INDEX = 15
+export const WORD_LENGTH_BITS = new Int32Array([
+  0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+])
+export const QUANT_DISTORTION_TABLE = (() => {
+  const table = new Float32Array(MAX_WORD_LENGTH_INDEX + 1)
+  table[0] = 1.0
+  for (let wl = 1; wl <= MAX_WORD_LENGTH_INDEX; wl++) {
+    const bitsPerSample = WORD_LENGTH_BITS[wl]
+    const quantRange = (1 << (bitsPerSample - 1)) - 1
+    table[wl] = 1.0 / (12.0 * quantRange * quantRange)
+  }
+  return table
+})()
+export const DISTORTION_DELTA_DB = (() => {
+  const table = new Float32Array(MAX_WORD_LENGTH_INDEX)
+  for (let i = 0; i < MAX_WORD_LENGTH_INDEX; i++) {
+    table[i] =
+      10 *
+      Math.log10(
+        QUANT_DISTORTION_TABLE[i + 1] / (QUANT_DISTORTION_TABLE[i] || 1.0)
+      )
+  }
+  return table
+})()
+export const SCALE_FACTORS = (() => {
+  const table = new Float32Array(64)
+  for (let i = 0; i < 64; i++) {
+    table[i] = Math.pow(2.0, i / 3.0 - 21)
+  }
+  return table
+})()

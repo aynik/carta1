@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { toDb, fromDb, psychoAnalysis } from '../codec/analysis/psychoacoustics'
 import { PSYMODEL_MIN_POWER_DB } from '../codec/core/constants'
+import { BufferPool } from '../codec/core/buffers'
 
 describe('Psychoacoustics', () => {
   describe('toDb and fromDb', () => {
@@ -19,6 +20,8 @@ describe('Psychoacoustics', () => {
 
   describe('psychoAnalysis', () => {
     it('should integrate all components and produce a valid threshold', () => {
+      // Instantiate buffers
+      const bufferPool = new BufferPool()
       // Create MDCT coefficients with energy at specific frequencies
       const mdctCoeffs = new Float32Array(512)
       // Add energy at bin 50 (approximately 4.3kHz with 44.1kHz sample rate)
@@ -28,7 +31,7 @@ describe('Psychoacoustics', () => {
         mdctCoeffs[i] += 0.01 * Math.random()
       }
 
-      const result = psychoAnalysis(mdctCoeffs, 96)
+      const result = psychoAnalysis(mdctCoeffs, 96, bufferPool.psychoBuffers)
 
       // psychoAnalysis now returns critical band thresholds (25 bands)
       expect(result.criticalBandThresholds.length).toBe(25)
@@ -39,6 +42,9 @@ describe('Psychoacoustics', () => {
     })
 
     it('should demonstrate frequency masking', () => {
+      // Instantiate buffers
+      const bufferPool = new BufferPool()
+
       // Test that a strong tone masks nearby frequencies
       const mdctCoeffs = new Float32Array(512)
 
@@ -48,7 +54,7 @@ describe('Psychoacoustics', () => {
       // Add a weaker tone at bin 50 (approximately 4.3kHz) - far away
       mdctCoeffs[50] = 1.0
 
-      const result = psychoAnalysis(mdctCoeffs, 96)
+      const result = psychoAnalysis(mdctCoeffs, 96, bufferPool.psychoBuffers)
 
       // The psychoacoustic model creates complex masking patterns
       // Just verify that thresholds vary across critical bands (not uniform)
@@ -62,6 +68,8 @@ describe('Psychoacoustics', () => {
     })
 
     it('should never produce a threshold below the absolute threshold in quiet', () => {
+      // Instantiate buffers
+      const bufferPool = new BufferPool()
       // Create a very quiet signal (near silence)
       const mdctCoeffs = new Float32Array(512)
       // Add tiny amounts of noise
@@ -69,7 +77,7 @@ describe('Psychoacoustics', () => {
         mdctCoeffs[i] = 0.0001 * Math.random()
       }
 
-      const result = psychoAnalysis(mdctCoeffs, 96)
+      const result = psychoAnalysis(mdctCoeffs, 96, bufferPool.psychoBuffers)
 
       // The psychoacoustic model should produce reasonable thresholds
       // Note: Due to normalization and interpolation, the exact frequency response

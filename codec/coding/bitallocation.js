@@ -5,7 +5,6 @@
  * distributing available bits among Block Floating Units (BFUs) based on
  * psychoacoustic masking and signal-to-mask ratios.
  */
-
 import {
   FRAME_BITS,
   FRAME_OVERHEAD_BITS,
@@ -14,13 +13,12 @@ import {
   MAX_WORD_LENGTH_INDEX,
   WORD_LENGTH_BITS,
   DISTORTION_DELTA_DB,
+  PSYMODEL_MIN_POWER_DB,
+  INTERPOLATION_COMPENSATION_FACTOR,
+  BFU_MASK_INTERPOLATION_TABLE,
+  BFU_FREQUENCIES,
   NUM_BFUS,
   SAMPLE_RATE,
-  BFU_FREQUENCIES,
-  BFU_AMOUNTS_COUNT,
-  PSYMODEL_MIN_POWER_DB,
-  PSYMODEL_CB_FREQ_INDICES,
-  INTERPOLATION_COMPENSATION_FACTOR,
   PSYMODEL_FFT_SIZE,
 } from '../core/constants.js'
 
@@ -33,341 +31,287 @@ import {
  * @returns {Object} Allocation results with BFU count and bit distribution
  */
 export function allocateBits(psychoResults, bfuData, bfuSizes, maxBfuCount) {
-  // Calculate signal energy for each BFU
-  const signalEnergyDb = calculateBfuEnergy(bfuData, bfuSizes, maxBfuCount)
-
-  // Interpolate critical band thresholds to BFUs
-  const maskThresholdDb = interpolateCriticalBandsToBfus(
-    psychoResults.criticalBandThresholds
-  )
-
-  // Calculate Signal-to-Mask Ratios
-  const smrValues = calculateSMR(signalEnergyDb, maskThresholdDb, maxBfuCount)
-
-  // Determine optimal number of BFUs to use
-  const actualBfuCount = selectOptimalBfuCount(
-    smrValues,
-    signalEnergyDb,
-    maxBfuCount
-  )
-
-  // Calculate available bits for allocation
-  const availableBits =
-    FRAME_BITS - FRAME_OVERHEAD_BITS - actualBfuCount * BITS_PER_BFU_METADATA
-
-  // Perform actual bit allocation
-  const allocation = performBitAllocation(
-    actualBfuCount,
-    smrValues,
-    bfuSizes,
-    availableBits
-  )
-
-  return {
-    bfuCount: actualBfuCount,
-    allocation,
-  }
+  const energyDb = calculateBfuEnergy(bfuData, bfuSizes, maxBfuCount)
+  const maskDb = interpolateMask(psychoResults.criticalBandThresholds)
+  const smr = calculateSMR(energyDb, maskDb, maxBfuCount)
+  const usedBFU = selectOptimalBfuCount(smr, energyDb, maxBfuCount)
+  const avail =
+    FRAME_BITS - FRAME_OVERHEAD_BITS - usedBFU * BITS_PER_BFU_METADATA
+  const allocation = distributeBitsGreedy(usedBFU, smr, bfuSizes, avail)
+  return { bfuCount: usedBFU, allocation }
 }
 
 /**
  * Calculate energy in dB for each BFU
- * @param {Array} bfuData - BFU coefficient data
+ * @param {Array} bfuData - BFU coefficient bfuData
  * @param {Array} bfuSizes - Size of each BFU
  * @param {number} bfuCount - Number of BFUs to process
  * @returns {Float32Array} Energy values in dB
  */
 function calculateBfuEnergy(bfuData, bfuSizes, bfuCount) {
-  const energyPerBfu = new Float32Array(bfuCount)
-
+  const out = new Float32Array(bfuCount)
+  const minDb = PSYMODEL_MIN_POWER_DB
   for (let i = 0; i < bfuCount; i++) {
-    const data = bfuData[i]
-    const size = bfuSizes[i]
-
-    if (size === 0) {
-      energyPerBfu[i] = PSYMODEL_MIN_POWER_DB
+    const sz = bfuSizes[i]
+    if (!sz) {
+      out[i] = minDb
       continue
     }
-
-    // Calculate mean square energy
-    let energy = 0
-    for (let j = 0; j < size; j++) {
-      energy += data[j] * data[j]
-    }
-
-    // Convert to dB correctly using log10
-    energyPerBfu[i] =
-      energy > 0 ? 10 * Math.log10(energy / size) : PSYMODEL_MIN_POWER_DB
+    let sum = 0,
+      buf = bfuData[i]
+    for (let j = 0; j < sz; j++) sum += buf[j] * buf[j]
+    out[i] = sum > 0 ? 10 * Math.log10(sum / sz) : minDb
   }
-
-  return energyPerBfu
+  return out
 }
 
 /**
- * Interpolate critical band thresholds directly to BFU frequencies
- * @param {Float32Array} criticalBandThresholds - Critical band thresholds
- * @returns {Float32Array} Masking threshold per BFU
+ * Interpolate psychoacoustic masking thresholds from critical bands to BFU frequencies
+ * @param {Float32Array} criticalBandThresholds - Masking thresholds for each critical band
+ * @returns {Float32Array} Interpolated masking thresholds for each BFU
  */
-function interpolateCriticalBandsToBfus(criticalBandThresholds) {
-  const maskThresholdPerBfu = new Float32Array(NUM_BFUS)
-  const freqPerBin = SAMPLE_RATE / PSYMODEL_FFT_SIZE
+function interpolateMask(criticalBandThresholds) {
+  const maskValues = new Float32Array(NUM_BFUS)
 
-  for (let i = 0; i < NUM_BFUS; i++) {
-    const bfuFreq = BFU_FREQUENCIES[i]
-    const fftBinIndex = Math.round(bfuFreq / freqPerBin)
+  for (let bfuIndex = 0; bfuIndex < NUM_BFUS; bfuIndex++) {
+    const interpolationEntry = BFU_MASK_INTERPOLATION_TABLE[bfuIndex]
+    const currentBandThreshold = criticalBandThresholds[interpolationEntry.band]
+    const nextBandThreshold = criticalBandThresholds[interpolationEntry.next]
 
-    // Find which critical bands surround this FFT bin
-    let bandIndex = 0
-    while (
-      bandIndex < PSYMODEL_CB_FREQ_INDICES.length - 1 &&
-      PSYMODEL_CB_FREQ_INDICES[bandIndex + 1] < fftBinIndex
-    ) {
-      bandIndex++
-    }
+    // Calculate interpolation parameter t based on BFU frequency position
+    const normalizedFreqPosition =
+      (Math.round(
+        BFU_FREQUENCIES[bfuIndex] / (SAMPLE_RATE / PSYMODEL_FFT_SIZE)
+      ) -
+        interpolationEntry.x0) *
+      interpolationEntry.tInv
 
-    if (fftBinIndex <= PSYMODEL_CB_FREQ_INDICES[0]) {
-      maskThresholdPerBfu[i] = criticalBandThresholds[0]
-    } else if (
-      fftBinIndex >=
-      PSYMODEL_CB_FREQ_INDICES[PSYMODEL_CB_FREQ_INDICES.length - 1]
-    ) {
-      maskThresholdPerBfu[i] =
-        criticalBandThresholds[criticalBandThresholds.length - 1]
-    } else {
-      const x0 = PSYMODEL_CB_FREQ_INDICES[bandIndex]
-      const x1 = PSYMODEL_CB_FREQ_INDICES[bandIndex + 1]
-      const y0 = criticalBandThresholds[bandIndex]
-      const y1 = criticalBandThresholds[bandIndex + 1]
-      const bandWidth = x1 - x0
+    const interpolatedValue =
+      currentBandThreshold +
+      (nextBandThreshold - currentBandThreshold) * normalizedFreqPosition
 
-      if (bandWidth > 0) {
-        const t = (fftBinIndex - x0) / bandWidth
-        const interpolated = y0 + (y1 - y0) * t
-        const compensation =
-          Math.abs(y1 - y0) * INTERPOLATION_COMPENSATION_FACTOR
-        maskThresholdPerBfu[i] = interpolated + compensation
-      } else {
-        maskThresholdPerBfu[i] = y0
-      }
-    }
+    // Add compensation factor based on threshold difference
+    maskValues[bfuIndex] =
+      interpolatedValue +
+      Math.abs(nextBandThreshold - currentBandThreshold) *
+        INTERPOLATION_COMPENSATION_FACTOR
   }
 
-  return maskThresholdPerBfu
+  return maskValues
 }
 
 /**
- * Calculate Signal-to-Mask Ratio for each BFU
- * @param {Float32Array} signalEnergyDb - Signal energy per BFU
- * @param {Float32Array} maskThresholdDb - Masking threshold per BFU
- * @param {number} maxBfuCount - Maximum number of BFUs
- * @returns {Float32Array} SMR values in dB
+ * Calculate Signal-to-Mask Ratios (SMR) for each BFU
+ * SMR determines how much energy exceeds the masking threshold
+ * @param {Float32Array} energyDb - Energy values in dB for each BFU
+ * @param {Float32Array} maskDb - Masking threshold values in dB for each BFU
+ * @param {number} bfuCount - Number of BFUs to process
+ * @returns {Float32Array} SMR values for each BFU (-Infinity for inaudible BFUs)
  */
-function calculateSMR(signalEnergyDb, maskThresholdDb, maxBfuCount) {
-  const smrValues = new Float32Array(maxBfuCount)
+function calculateSMR(energyDb, maskDb, bfuCount) {
+  const smrValues = new Float32Array(bfuCount)
 
-  for (let bfu = 0; bfu < maxBfuCount; bfu++) {
-    smrValues[bfu] =
-      signalEnergyDb[bfu] <= PSYMODEL_MIN_POWER_DB
+  for (let bfuIndex = 0; bfuIndex < bfuCount; bfuIndex++) {
+    const energyValue = energyDb[bfuIndex]
+    smrValues[bfuIndex] =
+      energyValue <= PSYMODEL_MIN_POWER_DB
         ? -Infinity
-        : signalEnergyDb[bfu] - maskThresholdDb[bfu]
+        : energyValue - maskDb[bfuIndex]
   }
 
   return smrValues
 }
 
 /**
- * Select optimal number of BFUs to use based on SMR distribution
- * @param {Float32Array} smrValues - Signal-to-Mask ratios
- * @param {Float32Array} signalEnergyDb - Signal energy per BFU
- * @param {number} maxBfuCount - Maximum available BFUs
- * @returns {number} Optimal BFU count
+ * Determine optimal number of BFUs to use based on SMR analysis
+ * Uses cumulative SMR analysis to find the point of diminishing returns
+ * @param {Float32Array} smrValues - Signal-to-Mask ratios for each BFU
+ * @param {Float32Array} energyValues - Energy values for each BFU
+ * @param {number} maxBfuCount - Maximum BFUs available
+ * @returns {number} Optimal number of BFUs to use for encoding
  */
-function selectOptimalBfuCount(smrValues, signalEnergyDb, maxBfuCount) {
-  // Check if we have any audible content (positive SMR)
-  const hasAudibleContent = smrValues.some((smr) => smr > 0)
-
-  if (hasAudibleContent) {
-    // Create sorted list of BFUs by their contribution (positive SMR only)
-    const contributions = []
-    for (let i = 0; i < maxBfuCount; i++) {
-      if (smrValues[i] > 0) {
-        contributions.push({ index: i, smr: smrValues[i] })
-      }
-    }
-    contributions.sort((a, b) => b.smr - a.smr)
-
-    if (contributions.length === 0) {
-      return BFU_AMOUNTS[BFU_AMOUNTS.length - 1]
-    }
-
-    // Find the natural cutoff using gradient of cumulative SMR
-    const cumulativeSMR = []
-    let sum = 0
-    for (let i = 0; i < contributions.length; i++) {
-      sum += contributions[i].smr
-      cumulativeSMR.push(sum)
-    }
-
-    // Find where the gradient becomes shallow (diminishing returns)
-    for (const candidateCount of BFU_AMOUNTS) {
-      if (candidateCount > maxBfuCount) continue
-
-      // Check if all significant contributions fit within this count
-      const requiredBfus = contributions
-        .slice(0, Math.min(contributions.length, candidateCount))
-        .map((c) => c.index)
-
-      const maxRequiredIndex = Math.max(...requiredBfus, 0)
-
-      if (maxRequiredIndex < candidateCount) {
-        // Check if we've captured the bulk of the contribution
-        const capturedIndex = Math.min(
-          candidateCount - 1,
-          contributions.length - 1
-        )
-        if (capturedIndex >= contributions.length - 1) {
-          return candidateCount
-        }
-
-        // Use gradient to detect diminishing returns
-        const remainingIndices = contributions.length - capturedIndex - 1
-        if (remainingIndices > 0) {
-          const avgRemaining =
-            (cumulativeSMR[cumulativeSMR.length - 1] -
-              cumulativeSMR[capturedIndex]) /
-            remainingIndices
-          const avgCaptured = cumulativeSMR[capturedIndex] / (capturedIndex + 1)
-
-          // If remaining BFUs contribute much less on average, we've found our cutoff
-          if (avgRemaining < avgCaptured * 0.1) {
-            return candidateCount
-          }
-        }
-      }
-    }
-  } else {
-    // Find the highest BFU index that contains actual signal
-    let highestSignalBfu = -1
-    for (let i = maxBfuCount - 1; i >= 0; i--) {
-      if (
-        signalEnergyDb[i] > PSYMODEL_MIN_POWER_DB &&
-        smrValues[i] > -Infinity
-      ) {
-        highestSignalBfu = i
-        break
-      }
-    }
-
-    // Find smallest BFU count that includes all signal
-    for (const candidateCount of BFU_AMOUNTS) {
-      if (candidateCount > highestSignalBfu) {
-        return candidateCount
-      }
+function selectOptimalBfuCount(smrValues, energyValues, maxBfuCount) {
+  // Collect BFUs with positive SMR (above masking threshold)
+  const positiveSMRBfus = []
+  for (let bfuIndex = 0; bfuIndex < maxBfuCount; bfuIndex++) {
+    if (smrValues[bfuIndex] > 0) {
+      positiveSMRBfus.push({
+        index: bfuIndex,
+        smrValue: smrValues[bfuIndex],
+      })
     }
   }
 
-  return BFU_AMOUNTS[BFU_AMOUNTS_COUNT - 1]
+  // If no BFUs have positive SMR, fall back to energy-based selection
+  if (!positiveSMRBfus.length) {
+    for (let bfuIndex = maxBfuCount - 1; bfuIndex >= 0; bfuIndex--) {
+      if (energyValues[bfuIndex] > PSYMODEL_MIN_POWER_DB) {
+        return (
+          BFU_AMOUNTS.find((count) => count > bfuIndex) ||
+          BFU_AMOUNTS[BFU_AMOUNTS.length - 1]
+        )
+      }
+    }
+    return BFU_AMOUNTS[0]
+  }
+
+  // Sort BFUs by SMR value (highest first)
+  positiveSMRBfus.sort((a, b) => b.smrValue - a.smrValue)
+
+  // Calculate cumulative SMR values
+  const cumulativeSmr = new Float32Array(positiveSMRBfus.length)
+  cumulativeSmr[0] = positiveSMRBfus[0].smrValue
+  for (let k = 1; k < positiveSMRBfus.length; k++) {
+    cumulativeSmr[k] = cumulativeSmr[k - 1] + positiveSMRBfus[k].smrValue
+  }
+
+  // Find optimal cutoff point using diminishing returns analysis
+  for (const candidateCount of BFU_AMOUNTS) {
+    if (candidateCount > maxBfuCount) continue
+    if (positiveSMRBfus.length <= candidateCount) return candidateCount
+
+    const lastIncludedIndex = candidateCount - 1
+    const averageIncludedSmr =
+      cumulativeSmr[lastIncludedIndex] / (lastIncludedIndex + 1)
+    const averageExcludedSmr =
+      (cumulativeSmr[positiveSMRBfus.length - 1] -
+        cumulativeSmr[lastIncludedIndex]) /
+      (positiveSMRBfus.length - lastIncludedIndex - 1)
+
+    // If excluded BFUs contribute less than 10% of included average, use this count
+    if (averageExcludedSmr < averageIncludedSmr * 0.1) return candidateCount
+  }
+
+  return BFU_AMOUNTS[BFU_AMOUNTS.length - 1]
 }
 
 /**
- * Allocate available bits among BFUs using a greedy algorithm
- * @param {number} actualBfuCount - Number of BFUs to allocate
- * @param {Float32Array} smrValues - Signal-to-Mask ratios
- * @param {Array} bfuSizes - Size of each BFU
- * @param {number} availableBits - Total bits available for allocation
+ * Distribute available bits among BFUs using a greedy heap-based algorithm
+ * Iteratively upgrades quantization precision for the BFU with highest SMR
+ * @param {number} activeBfuCount - Number of BFUs to distribute bits to
+ * @param {Float32Array} smrValues - Signal-to-Mask ratios for prioritization
+ * @param {Array} bfuSizes - Size (coefficient count) of each BFU
+ * @param {number} remainingBits - Total bits available for distribution
  * @returns {Int32Array} Word length index allocation per BFU
  */
-function performBitAllocation(
-  actualBfuCount,
+function distributeBitsGreedy(
+  activeBfuCount,
   smrValues,
   bfuSizes,
-  availableBits
+  remainingBits
 ) {
-  const allocation = new Int32Array(actualBfuCount)
-  const heap = []
+  const wordLengthAllocation = new Int32Array(activeBfuCount)
+  const heapBfuIndices = []
+  const heapPriorities = []
 
-  // Initialize heap with BFUs that have signal
-  for (let i = 0; i < actualBfuCount; i++) {
-    if (smrValues[i] > -Infinity) {
-      heap.push({ bfu: i, priority: smrValues[i] })
+  // Initialize heap with BFUs that have finite SMR values
+  for (let bfuIndex = 0; bfuIndex < activeBfuCount; bfuIndex++) {
+    if (smrValues[bfuIndex] > -Infinity) {
+      heapBfuIndices.push(bfuIndex)
+      heapPriorities.push(smrValues[bfuIndex])
     }
   }
 
-  // Build max heap
-  for (let i = Math.floor(heap.length / 2) - 1; i >= 0; i--) {
-    heapifyDown(heap, i)
+  // Build max-heap structure
+  for (
+    let nodeIndex = (heapBfuIndices.length >> 1) - 1;
+    nodeIndex >= 0;
+    nodeIndex--
+  ) {
+    siftDown(heapBfuIndices, heapPriorities, nodeIndex)
   }
 
-  // Greedy allocation
-  while (heap.length > 0 && availableBits > 0) {
-    const bestBfu = heap[0]
-    const currentWl = allocation[bestBfu.bfu]
+  // Greedily allocate bits to highest priority BFUs
+  while (heapBfuIndices.length && remainingBits > 0) {
+    const currentBfu = heapBfuIndices[0]
+    const currentWordLength = wordLengthAllocation[currentBfu]
 
-    if (currentWl >= MAX_WORD_LENGTH_INDEX) {
-      heap[0] = heap[heap.length - 1]
-      heap.pop()
-      if (heap.length > 0) heapifyDown(heap, 0)
+    // Skip BFUs that have reached maximum quantization precision
+    if (currentWordLength >= MAX_WORD_LENGTH_INDEX) {
+      popRoot(heapBfuIndices, heapPriorities)
       continue
     }
 
-    const upgradeCost = calculateUpgradeCost(bestBfu.bfu, currentWl, bfuSizes)
+    // Calculate bit cost for upgrading this BFU's quantization
+    const bfuSize = bfuSizes[currentBfu]
+    const upgradeCost =
+      WORD_LENGTH_BITS[currentWordLength + 1] * bfuSize -
+      WORD_LENGTH_BITS[currentWordLength] * bfuSize
 
-    if (upgradeCost <= availableBits) {
-      availableBits -= upgradeCost
-      allocation[bestBfu.bfu]++
-      bestBfu.priority += DISTORTION_DELTA_DB[currentWl]
-      heapifyDown(heap, 0)
-    } else {
-      heap[0] = heap[heap.length - 1]
-      heap.pop()
-      if (heap.length > 0) heapifyDown(heap, 0)
+    if (upgradeCost > remainingBits) {
+      popRoot(heapBfuIndices, heapPriorities)
+      continue
     }
+
+    // Perform the upgrade
+    remainingBits -= upgradeCost
+    wordLengthAllocation[currentBfu] = currentWordLength + 1
+    heapPriorities[0] += DISTORTION_DELTA_DB[currentWordLength]
+    siftDown(heapBfuIndices, heapPriorities, 0)
   }
 
-  return allocation
+  return wordLengthAllocation
 }
 
 /**
- * Calculate bit cost to upgrade a BFU's word length
- * @param {number} bfuIndex - Index of the BFU to upgrade
- * @param {number} currentWl - Current word length of the BFU
- * @param {number[]} bfuSizes - Array of BFU sizes (number of coefficients per BFU)
- * @returns {number} Additional bits required to upgrade word length by 1
+ * Remove the root element from a max-heap and restore heap property
+ * @param {Array} heapIndices - Array of BFU indices forming the heap
+ * @param {Array} heapPriorities - Array of priority values corresponding to indices
  */
-function calculateUpgradeCost(bfuIndex, currentWl, bfuSizes) {
-  const currentBits = WORD_LENGTH_BITS[currentWl] * bfuSizes[bfuIndex]
-  const nextBits = WORD_LENGTH_BITS[currentWl + 1] * bfuSizes[bfuIndex]
-  return nextBits - currentBits
+function popRoot(heapIndices, heapPriorities) {
+  const lastIndex = heapIndices.length - 1
+  heapIndices[0] = heapIndices[lastIndex]
+  heapPriorities[0] = heapPriorities[lastIndex]
+  heapIndices.pop()
+  heapPriorities.pop()
+  if (heapIndices.length) siftDown(heapIndices, heapPriorities, 0)
 }
 
 /**
- * Maintain max heap property by moving element down
- * @param {Array} heap - Heap array
- * @param {number} startIdx - Starting index
+ * Restore max-heap property by sifting an element down to its correct position
+ * @param {Array} heapIndices - Array of BFU indices forming the heap
+ * @param {Array} heapPriorities - Array of priority values corresponding to indices
+ * @param {number} startIndex - Index of element to sift down
  */
-function heapifyDown(heap, startIdx) {
-  const length = heap.length
-  const element = heap[startIdx]
+function siftDown(heapIndices, heapPriorities, startIndex) {
+  const heapSize = heapIndices.length
+  let currentIndex = startIndex
+  const originalIndexValue = heapIndices[currentIndex]
+  const originalPriorityValue = heapPriorities[currentIndex]
 
   while (true) {
-    const leftChild = 2 * startIdx + 1
-    const rightChild = 2 * startIdx + 2
-    let largest = startIdx
-    let largestPriority = element.priority
+    const leftChildIndex = (currentIndex << 1) + 1
+    const rightChildIndex = leftChildIndex + 1
+    let maxIndex = currentIndex
+    let maxPriority = originalPriorityValue
 
-    if (leftChild < length && heap[leftChild].priority > largestPriority) {
-      largest = leftChild
-      largestPriority = heap[leftChild].priority
+    // Check if left child has higher priority
+    if (
+      leftChildIndex < heapSize &&
+      heapPriorities[leftChildIndex] > maxPriority
+    ) {
+      maxIndex = leftChildIndex
+      maxPriority = heapPriorities[leftChildIndex]
     }
 
-    if (rightChild < length && heap[rightChild].priority > largestPriority) {
-      largest = rightChild
+    // Check if right child has higher priority
+    if (
+      rightChildIndex < heapSize &&
+      heapPriorities[rightChildIndex] > maxPriority
+    ) {
+      maxIndex = rightChildIndex
     }
 
-    if (largest === startIdx) break
+    // If current position is correct, we're done
+    if (maxIndex === currentIndex) break
 
-    heap[startIdx] = heap[largest]
-    startIdx = largest
+    // Move the higher priority child up
+    heapIndices[currentIndex] = heapIndices[maxIndex]
+    heapPriorities[currentIndex] = heapPriorities[maxIndex]
+    currentIndex = maxIndex
   }
 
-  heap[startIdx] = element
+  // Place original element in its final position
+  heapIndices[currentIndex] = originalIndexValue
+  heapPriorities[currentIndex] = originalPriorityValue
 }

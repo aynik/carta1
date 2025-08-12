@@ -373,7 +373,11 @@ export function quantizationStage(context) {
       bufferPool.bfuData
     )
 
-    const psychoResults = psychoAnalysis(coefficients, options.normalizationDb)
+    const psychoResults = psychoAnalysis(
+      coefficients,
+      options.normalizationDb,
+      bufferPool.psychoBuffers
+    )
     const { bfuCount: selectedBfuCount, allocation } = allocateBits(
       psychoResults,
       bfuData,
