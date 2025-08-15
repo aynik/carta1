@@ -1,11 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { BufferPool } from '../codec/core/buffers'
-import {
-  NUM_BFUS,
-  MAX_BFU_SIZE,
-  QMF_DELAY,
-  QMF_HIGH_BAND_DELAY,
-} from '../codec/core/constants'
+import { QMF_DELAY, QMF_HIGH_BAND_DELAY } from '../codec/core/constants'
 
 describe('BufferPool', () => {
   it('should initialize all buffers with correct sizes', () => {
@@ -58,10 +53,6 @@ describe('BufferPool', () => {
     expect(pool.reversalBuffers[32].length).toBe(32)
     expect(pool.reversalBuffers[128].length).toBe(128)
     expect(pool.reversalBuffers[256].length).toBe(256)
-
-    // Bit allocation buffers
-    expect(pool.bfuData.length).toBe(NUM_BFUS)
-    expect(pool.bfuData[0].length).toBe(MAX_BFU_SIZE)
   })
 
   it('should have all buffers zero-initialized', () => {
@@ -77,6 +68,5 @@ describe('BufferPool', () => {
     checkZero(pool.mdctOverlap[0])
     checkZero(pool.imdctOverlap[0])
     checkZero(pool.reversalBuffers[32])
-    checkZero(pool.bfuData[0])
   })
 })

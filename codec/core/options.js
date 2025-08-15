@@ -18,7 +18,6 @@ class EncoderOptions {
       transientThresholdLow: 1.0,
       transientThresholdMid: 1.5,
       transientThresholdHigh: 2.0,
-      normalizationDb: 68,
     }
 
     this.metadata = {
@@ -45,14 +44,6 @@ class EncoderOptions {
           'Controls the transient detection threshold for the high frequency band (11-22kHz). Lower values make detection more sensitive, triggering short blocks more easily. Higher values require stronger transients.',
         range: [0.01, 4],
         step: 0.01,
-      },
-      normalizationDb: {
-        default: this.values.normalizationDb,
-        name: 'Normalization Target (dB)',
-        description:
-          'Sets the target maximum level in decibels for psychoacoustic model normalization. This affects the dynamic range allocation and quantization precision. Higher values may increase bitrate but preserve more detail.',
-        range: [60, 80],
-        step: 1,
       },
     }
 
@@ -120,10 +111,6 @@ class EncoderOptions {
 
   get transientThresholdHigh() {
     return this.values.transientThresholdHigh
-  }
-
-  get normalizationDb() {
-    return this.values.normalizationDb
   }
 
   getMetadata(key) {
