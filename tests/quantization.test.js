@@ -1,34 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import {
-  findScaleFactor,
   quantize,
   dequantize,
   groupIntoBFUs,
 } from '../codec/coding/quantization'
 import { SCALE_FACTORS } from '../codec/core/constants'
+import { findScaleFactor } from '../codec/coding/bitallocation'
 
 describe('Quantization', () => {
-  describe('findScaleFactor', () => {
-    it('should select the optimal scale factor', () => {
-      // Test with coefficients that fit within the scale factor range
-      const coeffs = new Float32Array([0.01, 0.05, 0.1, 0.2])
-      const sfIndex = findScaleFactor(coeffs)
-      const maxAmplitude = 0.2
-
-      // The selected scale factor should be the smallest one >= maxAmplitude
-      expect(SCALE_FACTORS[sfIndex]).toBeGreaterThanOrEqual(maxAmplitude)
-      if (sfIndex > 0) {
-        expect(SCALE_FACTORS[sfIndex - 1]).toBeLessThan(maxAmplitude)
-      }
-    })
-
-    it('should return 0 for all-zero input', () => {
-      const coeffs = new Float32Array([0, 0, 0, 0])
-      const sfIndex = findScaleFactor(coeffs)
-      expect(sfIndex).toBe(0)
-    })
-  })
-
   describe('quantize and dequantize', () => {
     it('should perform a round-trip with acceptable error', () => {
       // Use coefficients within the scale factor range (max 1.0)

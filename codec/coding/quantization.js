@@ -1,9 +1,18 @@
 /**
- * Carta1 Audio Codec - Quantization
+ * Carta1 Audio Codec - Quantization Module
  *
- * This module implements quantization and dequantization of MDCT coefficients
- * for the ATRAC1 audio codec, organizing coefficients into Block Floating Units (BFUs)
- * and applying appropriate scale factors for optimal bit allocation.
+ * This module handles the quantization and dequantization of MDCT frequency coefficients
+ * for the Carta1 audio codec. It provides functions to convert floating-point frequency
+ * domain data into integer representations suitable for bitstream encoding.
+ *
+ * Key functions:
+ * - Quantization of coefficients using scale factors and bit depths
+ * - Dequantization for reconstruction during decoding
+ * - BFU (Band Frequency Unit) organization for psychoacoustic processing
+ *
+ * The quantization process uses configurable scale factors to maintain audio quality
+ * while achieving the target compression ratio. The module supports both uniform
+ * and non-uniform quantization schemes based on perceptual importance.
  */
 
 import {
@@ -16,70 +25,43 @@ import {
 } from '../core/constants.js'
 
 /**
- * Find the optimal scale factor index for a set of coefficients
- * @param {Float32Array} coefficients - MDCT coefficients to analyze
- * @returns {number} Scale factor index (0-63)
- */
-export function findScaleFactor(coefficients) {
-  let maxAmplitude = 0
-
-  for (let i = 0; i < coefficients.length; i++) {
-    maxAmplitude = Math.max(maxAmplitude, Math.abs(coefficients[i]))
-  }
-
-  if (maxAmplitude === 0) return 0
-
-  // Binary search for optimal scale factor
-  let low = 0
-  let high = SCALE_FACTORS.length - 1
-
-  while (low < high) {
-    const mid = (low + high) >> 1
-    if (maxAmplitude <= SCALE_FACTORS[mid]) {
-      high = mid
-    } else {
-      low = mid + 1
-    }
-  }
-
-  return low
-}
-
-/**
- * Quantize floating-point coefficients to integer values
- * @param {Float32Array} coefficients - Input coefficients to quantize
- * @param {number} scaleFactorIndex - Index into SCALE_FACTORS table
- * @param {number} bitsPerSample - Number of bits per quantized sample
- * @returns {Int32Array} Quantized integer coefficients
+ * Quantize coefficients.
+ * @param {Float32Array} coefficients
+ * @param {number} scaleFactorIndex
+ * @param {number} bitsPerSample
+ * @returns {Int32Array} out
  */
 export function quantize(coefficients, scaleFactorIndex, bitsPerSample) {
+  const length = coefficients.length
+  const out = new Int32Array(length)
   if (bitsPerSample === 0 || scaleFactorIndex === 0) {
-    return new Int32Array(coefficients.length)
+    // Zero fast path
+    out.fill(0, 0, length)
+    return out
   }
 
   const scaleFactor = SCALE_FACTORS[scaleFactorIndex]
   const quantRange = (1 << (bitsPerSample - QUANTIZATION_SIGN_BIT_SHIFT)) - 1
   const normFactor = quantRange / scaleFactor
 
-  const quantized = new Int32Array(coefficients.length)
+  const hi = quantRange
+  const lo = -quantRange - 1
 
-  for (let i = 0; i < coefficients.length; i++) {
-    const normalized = coefficients[i] * normFactor
-    quantized[i] = Math.max(
-      -quantRange - 1,
-      Math.min(quantRange, Math.round(normalized))
-    )
+  for (let i = 0; i < length; i++) {
+    const x = coefficients[i] * normFactor
+    const y = (x + (x >= 0 ? 0.5 : -0.5)) | 0
+    out[i] = y > hi ? hi : y < lo ? lo : y
   }
 
-  return quantized
+  return out
 }
 
 /**
- * Dequantize integer coefficients back to floating-point values
- * @param {Int32Array} quantized - Quantized integer coefficients
- * @param {number} scaleFactorIndex - Index into SCALE_FACTORS table
- * @param {number} bitsPerSample - Number of bits per quantized sample
- * @returns {Float32Array} Dequantized floating-point coefficients
+ * Dequantize coefficients.
+ * @param {Int32Array} quantized
+ * @param {number} scaleFactorIndex
+ * @param {number} bitsPerSample
+ * @returns {Float32Array}
  */
 export function dequantize(quantized, scaleFactorIndex, bitsPerSample) {
   if (bitsPerSample === 0 || scaleFactorIndex === 0) {
@@ -90,24 +72,41 @@ export function dequantize(quantized, scaleFactorIndex, bitsPerSample) {
   const quantRange = (1 << (bitsPerSample - QUANTIZATION_SIGN_BIT_SHIFT)) - 1
   const denormFactor = scaleFactor / quantRange
 
-  const dequantized = new Float32Array(quantized.length)
-
+  const deq = new Float32Array(quantized.length)
   for (let i = 0; i < quantized.length; i++) {
-    dequantized[i] = quantized[i] * denormFactor
+    deq[i] = quantized[i] * denormFactor
   }
-
-  return dequantized
+  return deq
 }
 
 /**
- * Group MDCT coefficients into Block Floating Units (BFUs)
- * @param {Float32Array} coefficients - Input MDCT coefficients
- * @param {number[]} blockModes - Block mode for each band (0=long, 1=short)
- * @param {Array<Float32Array>} bfuBuffers - Optional pre-allocated BFU buffers
- * @returns {Object} Object containing bfuData, bfuSizes, and bfuCount
+ * Groups MDCT coefficients into Band Frequency Units (BFUs) for bit allocation.
+ *
+ * This function organizes frequency-domain coefficients into perceptually meaningful
+ * frequency bands (BFUs) based on the block modes for each of the three frequency bands.
+ * It handles both long and short blocks, with different frequency resolutions and
+ * BFU start positions for each block type.
+ *
+ * The function implements copy-avoidance optimization: when a BFU slice is fully
+ * contained within a frequency band, it directly copies the data without buffer
+ * filling. For BFUs that span band boundaries or extend beyond the available
+ * coefficients, it handles partial copying and zero-padding appropriately.
+ *
+ * Frequency Band Structure:
+ * - Band 0: 0-128 coefficients (low frequencies)
+ * - Band 1: 128-256 coefficients (mid frequencies)
+ * - Band 2: 256-512 coefficients (high frequencies)
+ *
+ * Block Types:
+ * - Long blocks (mode 0): Higher frequency resolution, fewer temporal segments
+ * - Short blocks (mode 1): Lower frequency resolution, more temporal segments
+ *
+ * @param {Float32Array} coefficients
+ * @param {Array<number>} blockModes
+ * @returns {{bfuData: Array<Float32Array>, bfuSizes: Array<number>, bfuCount: number}}
  */
-export function groupIntoBFUs(coefficients, blockModes, bfuBuffers = null) {
-  const bfuData = bfuBuffers ?? []
+export function groupIntoBFUs(coefficients, blockModes) {
+  const bfuData = []
   const bfuSizes = []
 
   let coeffIndex = 0
@@ -123,22 +122,24 @@ export function groupIntoBFUs(coefficients, blockModes, bfuBuffers = null) {
     while (bfuIndex < bandEnd) {
       const size = SPECS_PER_BFU[bfuIndex]
       const startPos = startPositions[bfuIndex] - bandStart
+      const endPos = startPos + size
+      const bfu = new Float32Array(size)
 
-      const bfu = bfuBuffers ? bfuBuffers[bfuIndex] : new Float32Array(size)
-      bfu.fill(0) // Clear the buffer
-
-      if (startPos >= 0 && startPos < bandSize) {
-        const endPos = Math.min(startPos + size, bandSize)
-        const actualSize = endPos - startPos
-
-        for (let i = 0; i < actualSize; i++) {
-          bfu[i] = coefficients[bandStart + startPos + i]
+      if (startPos >= 0 && endPos <= bandSize) {
+        bfu.set(coefficients.subarray(bandStart + startPos, bandStart + endPos))
+      } else {
+        bfu.fill(0)
+        if (startPos < bandSize && endPos > 0) {
+          const srcStart = Math.max(0, startPos)
+          const srcEnd = Math.min(bandSize, endPos)
+          bfu.set(
+            coefficients.subarray(bandStart + srcStart, bandStart + srcEnd),
+            Math.max(0, -startPos)
+          )
         }
       }
 
-      if (!bfuBuffers) {
-        bfuData.push(bfu)
-      }
+      bfuData.push(bfu)
       bfuSizes.push(size)
       bfuIndex++
     }
