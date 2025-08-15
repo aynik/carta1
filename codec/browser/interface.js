@@ -71,7 +71,6 @@ class Carta1Worker {
    * @param {number} [options.transientThresholdLow] - Low band transient threshold
    * @param {number} [options.transientThresholdMid] - Mid band transient threshold
    * @param {number} [options.transientThresholdHigh] - High band transient threshold
-   * @param {number} [options.normalizationDb] - Normalization level in dB
    * @returns {Promise<Object>} Encoding result
    * @returns {Blob} returns.aeaBlob - ATRAC1 encoded audio blob
    * @returns {Object} returns.shortBlockData - Short block frame indices

@@ -122,7 +122,14 @@ export function imdctStage(context) {
   const TRANSFORM_FUNCS = [imdct256, imdct256, imdct512]
 
   /**
-   * Inverse transform a single frequency band
+   * Inverse transform a single frequency band.
+   * @param {Float32Array} coeffs
+   * @param {number} bandIndex
+   * @param {number} blockMode
+   * @param {Float32Array} overlapBuffer
+   * @param {Object} bufferPool
+   * @param {Object} config
+   * @returns {Float32Array}
    */
   function transformBand(
     coeffs,
@@ -156,7 +163,14 @@ export function imdctStage(context) {
   }
 
   /**
-   * Inverse transform using long block
+   * Inverse transform using long block.
+   * @param {Float32Array} coeffs
+   * @param {number} bandIndex
+   * @param {Float32Array} overlapBuffer
+   * @param {Object} bufferPool
+   * @param {Object} config
+   * @param {Object} transformFunc
+   * @returns {Float32Array}
    */
   function inverseLongBlock(
     coeffs,
@@ -219,7 +233,13 @@ export function imdctStage(context) {
   }
 
   /**
-   * Inverse transform using short blocks
+   * Inverse transform using short blocks.
+   * @param {Float32Array} coeffs
+   * @param {number} bandIndex
+   * @param {Float32Array} overlapBuffer
+   * @param {Object} bufferPool
+   * @param {Object} config
+   * @returns {Float32Array}
    */
   function inverseShortBlocks(
     coeffs,

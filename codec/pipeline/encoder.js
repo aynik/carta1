@@ -22,11 +22,7 @@ import {
 } from '../utils.js'
 import { qmfAnalysis } from '../transforms/qmf.js'
 import { mdct64, mdct256, mdct512 } from '../transforms/mdct.js'
-import {
-  groupIntoBFUs,
-  findScaleFactor,
-  quantize,
-} from '../coding/quantization.js'
+import { groupIntoBFUs, quantize } from '../coding/quantization.js'
 import { allocateBits } from '../coding/bitallocation.js'
 import { BufferPool } from '../core/buffers.js'
 import { EncoderOptions } from '../core/options.js'
@@ -44,7 +40,6 @@ import {
   MDCT_OVERLAP_SIZE,
 } from '../core/constants.js'
 import { performFFT, detectTransient } from '../analysis/transient.js'
-import { psychoAnalysis } from '../analysis/psychoacoustics.js'
 
 /**
  * QMF Analysis Stage - Splits audio into frequency bands
@@ -174,7 +169,13 @@ export function mdctStage(context) {
   const TRANSFORM_FUNCS = [mdct256, mdct256, mdct512]
 
   /**
-   * Transform a single frequency band using MDCT
+   * Transform a single frequency band using MDCT.
+   * @param {Float32Array} samples
+   * @param {number} bandIndex
+   * @param {number} blockMode
+   * @param {Float32Array} overlapBuffer
+   * @param {Object} bufferPool
+   * @returns {Float32Array}
    */
   function transformBand(
     samples,
@@ -208,7 +209,14 @@ export function mdctStage(context) {
   }
 
   /**
-   * Transform using long block (better frequency resolution)
+   * Transform using long block (better frequency resolution).
+   * @param {Float32Array} samples
+   * @param {number} bandIndex
+   * @param {Object} config
+   * @param {Object} transformFunc
+   * @param {Float32Array} overlapBuffer
+   * @param {Object} bufferPool
+   * @returns {Float32Array}
    */
   function transformLongBlock(
     samples,
@@ -243,7 +251,13 @@ export function mdctStage(context) {
   }
 
   /**
-   * Transform using short blocks (better time resolution for transients)
+   * Transform using short blocks (better time resolution for transients).
+   * @param {Float32Array} samples
+   * @param {number} bandIndex
+   * @param {Object} config
+   * @param {Float32Array} overlapBuffer
+   * @param {Object} bufferPool
+   * @returns {Float32Array}
    */
   function transformShortBlocks(
     samples,
@@ -328,32 +342,22 @@ export function mdctStage(context) {
 }
 
 /**
- * Quantization Stage - Performs psychoacoustic analysis and quantization
+ * Quantization Stage - Performs RDO bit allocation and quantization
  *
  * The final encoding stage that:
  * 1. Groups coefficients into Block Floating Units (BFUs)
- * 2. Performs psychoacoustic analysis to determine masking thresholds
- * 3. Allocates bits based on perceptual importance
- * 4. Quantizes coefficients using scale factors and word lengths
+ * 2. Allocates bits using Rate-Distortion Optimization (RDO)
+ * 3. Quantizes coefficients using scale factors and word lengths
  *
- * Uses a perceptual model to ensure quantization noise remains below
- * the masking threshold, maximizing quality within the bit budget.
+ * Uses RDO to optimize the allocation of bits for maximum quality
+ * within the available bit budget.
  *
- * @param {Object} context - Pipeline context containing bufferPool and options
- * @param {BufferPool} context.bufferPool - Shared buffer pool for efficient memory management
- * @param {EncoderOptions} context.options - Encoding configuration options
  * @returns {Function} Stage function that processes MDCT results
- * @throws {Error} If bufferPool or options are not provided in context
+ * @throws {Error} If bufferPool is not provided in context
  */
-export function quantizationStage(context) {
-  const bufferPool =
-    context?.bufferPool ??
-    throwError('quantizationStage: bufferPool is required')
-  const options =
-    context?.options ?? throwError('quantizationStage: options is required')
-
+export function quantizationStage() {
   /**
-   * Perform psychoacoustic analysis and quantization
+   * Perform RDO bit allocation and quantization
    * @param {Object} input - MDCT transform results
    * @param {Float32Array} input.coefficients - MDCT coefficients
    * @param {Array<number>} input.blockModes - Block modes
@@ -369,31 +373,21 @@ export function quantizationStage(context) {
 
     const { bfuData, bfuSizes, bfuCount } = groupIntoBFUs(
       coefficients,
-      blockModes,
-      bufferPool.bfuData
+      blockModes
     )
 
-    const psychoResults = psychoAnalysis(
-      coefficients,
-      options.normalizationDb,
-      bufferPool.psychoBuffers
-    )
-    const { bfuCount: selectedBfuCount, allocation } = allocateBits(
-      psychoResults,
-      bfuData,
-      bfuSizes,
-      bfuCount
-    )
+    const {
+      bfuCount: selectedBfuCount,
+      allocation,
+      scaleFactorIndices,
+    } = allocateBits(bfuData, bfuSizes, bfuCount)
 
-    const scaleFactorIndices = new Int32Array(selectedBfuCount)
     const quantizedCoefficients = []
 
     for (let bfu = 0; bfu < selectedBfuCount; bfu++) {
       const data = bfuData[bfu].subarray(0, bfuSizes[bfu])
       const wordLength = allocation[bfu]
       const bitsPerSample = WORD_LENGTH_BITS[wordLength]
-
-      scaleFactorIndices[bfu] = findScaleFactor(data)
       const quantized = quantize(data, scaleFactorIndices[bfu], bitsPerSample)
       quantizedCoefficients.push(quantized)
     }

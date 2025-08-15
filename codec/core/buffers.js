@@ -2,15 +2,7 @@
  * Carta1 Audio Codec - Buffer Management
  */
 
-import {
-  NUM_BFUS,
-  MAX_BFU_SIZE,
-  QMF_DELAY,
-  QMF_HIGH_BAND_DELAY,
-  PSYMODEL_CRITICAL_BANDS,
-  PSYMODEL_HALF_FFT_SIZE,
-  PSYMODEL_NUM_BINS,
-} from './constants.js'
+import { QMF_DELAY, QMF_HIGH_BAND_DELAY } from './constants.js'
 
 export class BufferPool {
   constructor() {
@@ -84,27 +76,6 @@ export class BufferPool {
       32: new Float32Array(32),
       128: new Float32Array(128),
       256: new Float32Array(256),
-    }
-
-    // Bit allocation buffers
-    this.bfuData = new Array(NUM_BFUS)
-    for (let i = 0; i < NUM_BFUS; i++) {
-      this.bfuData[i] = new Float32Array(MAX_BFU_SIZE)
-    }
-
-    // Psychoacoustic model buffers (large Float32Arrays)
-    this.psychoBuffers = {
-      psdDb: new Float32Array(PSYMODEL_NUM_BINS),
-      linPower: new Float32Array(PSYMODEL_NUM_BINS),
-      tonalSPL: new Float32Array(PSYMODEL_HALF_FFT_SIZE),
-      nonTonalSPL: new Float32Array(PSYMODEL_CRITICAL_BANDS.length),
-      maskSpl: new Float32Array(PSYMODEL_HALF_FFT_SIZE),
-      maskPsd: new Float32Array(PSYMODEL_HALF_FFT_SIZE),
-      maskBark: new Float32Array(PSYMODEL_HALF_FFT_SIZE),
-      maskTonalOffset: new Float32Array(PSYMODEL_HALF_FFT_SIZE),
-      maskPsdF1: new Float32Array(PSYMODEL_HALF_FFT_SIZE),
-      maskPsdF2: new Float32Array(PSYMODEL_HALF_FFT_SIZE),
-      criticalBandThresholds: new Float32Array(PSYMODEL_CRITICAL_BANDS.length),
     }
   }
 }
