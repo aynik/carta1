@@ -44,7 +44,7 @@ describe('Quantization', () => {
 
       const quantized = quantize(coeffs, sfIndex, bits)
       expect(quantized[0]).toBe(quantRange)
-      expect(quantized[1]).toBe(-quantRange - 1)
+      expect(quantized[1]).toBe(-quantRange)
     })
   })
 
