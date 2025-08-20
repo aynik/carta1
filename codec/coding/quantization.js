@@ -35,7 +35,6 @@ export function quantize(coefficients, scaleFactorIndex, bitsPerSample) {
   const length = coefficients.length
   const out = new Int32Array(length)
   if (bitsPerSample === 0 || scaleFactorIndex === 0) {
-    // Zero fast path
     out.fill(0, 0, length)
     return out
   }
@@ -45,7 +44,7 @@ export function quantize(coefficients, scaleFactorIndex, bitsPerSample) {
   const normFactor = quantRange / scaleFactor
 
   const hi = quantRange
-  const lo = -quantRange - 1
+  const lo = -quantRange
 
   for (let i = 0; i < length; i++) {
     const x = coefficients[i] * normFactor
@@ -70,11 +69,10 @@ export function dequantize(quantized, scaleFactorIndex, bitsPerSample) {
 
   const scaleFactor = SCALE_FACTORS[scaleFactorIndex]
   const quantRange = (1 << (bitsPerSample - QUANTIZATION_SIGN_BIT_SHIFT)) - 1
-  const denormFactor = scaleFactor / quantRange
 
   const deq = new Float32Array(quantized.length)
   for (let i = 0; i < quantized.length; i++) {
-    deq[i] = quantized[i] * denormFactor
+    deq[i] = (quantized[i] * scaleFactor) / quantRange
   }
   return deq
 }

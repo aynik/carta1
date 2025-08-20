@@ -160,13 +160,13 @@ export class IMDCT extends MDCTBase {
     // Pre-FFT processing
     for (let i = 0; i < this.fftSize; i++) {
       const i2 = i * 2
-      const r = input[i2]
-      const im = input[this.halfSize - 1 - i2]
+      const r = -input[i2]
+      const im = -input[this.halfSize - 1 - i2]
       const c = this.sinCosTable[i2]
       const s = this.sinCosTable[i2 + 1]
 
-      real[i] = -2.0 * (im * s + r * c)
-      imag[i] = -2.0 * (im * c - r * s)
+      real[i] = im * s + r * c
+      imag[i] = im * c - r * s
     }
 
     FFT.fft(real, imag)
@@ -216,9 +216,9 @@ export const mdct64 = new MDCT(MDCT_SIZE_SHORT, 0.5)
 export const mdct256 = new MDCT(MDCT_SIZE_MID, 0.5)
 export const mdct512 = new MDCT(MDCT_SIZE_LONG, 1.0)
 
-export const imdct64 = new IMDCT(MDCT_SIZE_SHORT, MDCT_SIZE_SHORT * 4)
-export const imdct256 = new IMDCT(MDCT_SIZE_MID, MDCT_SIZE_MID * 4)
-export const imdct512 = new IMDCT(MDCT_SIZE_LONG, MDCT_SIZE_LONG * 2)
+export const imdct64 = new IMDCT(MDCT_SIZE_SHORT, MDCT_SIZE_SHORT * 8)
+export const imdct256 = new IMDCT(MDCT_SIZE_MID, MDCT_SIZE_MID * 8)
+export const imdct512 = new IMDCT(MDCT_SIZE_LONG, MDCT_SIZE_LONG * 4)
 
 /**
  * Perform overlap-add operation for MDCT reconstruction
