@@ -10,7 +10,7 @@ import {
 
 describe('RDO Bit Allocation', () => {
   const createMockBfuData = (sizes, value = 1) =>
-    sizes.map((size) => new Float32Array(size).fill(value))
+    sizes.map((size) => new Float64Array(size).fill(value))
 
   const createMockBufferPool = () => ({
     rdoScaleFactorTable: new Int32Array(52),
@@ -66,11 +66,11 @@ describe('RDO Bit Allocation', () => {
     // Create BFU data with varying energy levels
     for (let i = 0; i < 52; i++) {
       if (i < 5) {
-        bfuData.push(new Float32Array(10).fill(2.0)) // High energy
+        bfuData.push(new Float64Array(10).fill(2.0)) // High energy
       } else if (i < 10) {
-        bfuData.push(new Float32Array(10).fill(1.0)) // Medium energy
+        bfuData.push(new Float64Array(10).fill(1.0)) // Medium energy
       } else {
-        bfuData.push(new Float32Array(10).fill(0.1)) // Low energy
+        bfuData.push(new Float64Array(10).fill(0.1)) // Low energy
       }
     }
 
@@ -117,7 +117,7 @@ describe('RDO Bit Allocation', () => {
 describe('findScaleFactor', () => {
   it('should select the optimal scale factor', () => {
     // Test with coefficients that fit within the scale factor range
-    const coeffs = new Float32Array([0.01, 0.05, 0.1, 0.2])
+    const coeffs = new Float64Array([0.01, 0.05, 0.1, 0.2])
     const sfIndex = findScaleFactor(coeffs)
     const maxAmplitude = 0.2
 
@@ -129,7 +129,7 @@ describe('findScaleFactor', () => {
   })
 
   it('should return 0 for all-zero input', () => {
-    const coeffs = new Float32Array([0, 0, 0, 0])
+    const coeffs = new Float64Array([0, 0, 0, 0])
     const sfIndex = findScaleFactor(coeffs)
     expect(sfIndex).toBe(0)
   })

@@ -62,9 +62,9 @@ export function qmfAnalysisStage(context) {
 
   /**
    * Process PCM samples through QMF analysis
-   * @param {Float32Array} pcmSamples - Input PCM samples
+   * @param {Float64Array} pcmSamples - Input PCM samples
    * @returns {Object} Analysis result containing frequency bands
-   * @returns {Array<Float32Array>} returns.bands - Three frequency bands [low, mid, high]
+   * @returns {Array<Float64Array>} returns.bands - Three frequency bands [low, mid, high]
    */
   return (pcmSamples) => {
     const stage1 = qmfAnalysis(
@@ -118,9 +118,9 @@ export function blockSelectorStage(context) {
   /**
    * Analyze frequency bands and determine block modes
    * @param {Object} input - QMF analysis results
-   * @param {Array<Float32Array>} input.bands - Three frequency bands [low, mid, high]
+   * @param {Array<Float64Array>} input.bands - Three frequency bands [low, mid, high]
    * @returns {Object} Block selection results
-   * @returns {Array<Float32Array>} returns.bands - Original frequency bands
+   * @returns {Array<Float64Array>} returns.bands - Original frequency bands
    * @returns {Array<number>} returns.blockModes - Block modes for each band
    */
   return (input) => {
@@ -170,12 +170,12 @@ export function mdctStage(context) {
 
   /**
    * Transform a single frequency band using MDCT.
-   * @param {Float32Array} samples
+   * @param {Float64Array} samples
    * @param {number} bandIndex
    * @param {number} blockMode
-   * @param {Float32Array} overlapBuffer
+   * @param {Float64Array} overlapBuffer
    * @param {Object} bufferPool
-   * @returns {Float32Array}
+   * @returns {Float64Array}
    */
   function transformBand(
     samples,
@@ -210,13 +210,13 @@ export function mdctStage(context) {
 
   /**
    * Transform using long block (better frequency resolution).
-   * @param {Float32Array} samples
+   * @param {Float64Array} samples
    * @param {number} bandIndex
    * @param {Object} config
    * @param {Object} transformFunc
-   * @param {Float32Array} overlapBuffer
+   * @param {Float64Array} overlapBuffer
    * @param {Object} bufferPool
-   * @returns {Float32Array}
+   * @returns {Float64Array}
    */
   function transformLongBlock(
     samples,
@@ -252,12 +252,12 @@ export function mdctStage(context) {
 
   /**
    * Transform using short blocks (better time resolution for transients).
-   * @param {Float32Array} samples
+   * @param {Float64Array} samples
    * @param {number} bandIndex
    * @param {Object} config
-   * @param {Float32Array} overlapBuffer
+   * @param {Float64Array} overlapBuffer
    * @param {Object} bufferPool
-   * @returns {Float32Array}
+   * @returns {Float64Array}
    */
   function transformShortBlocks(
     samples,
@@ -267,7 +267,7 @@ export function mdctStage(context) {
     bufferPool
   ) {
     const numBlocks = 1 << (config.size === 256 ? 3 : 2) // 8 for band 2, 4 for bands 0-1
-    const output = new Float32Array(config.size)
+    const output = new Float64Array(config.size)
 
     for (let block = 0; block < numBlocks; block++) {
       const blockStart = block * MDCT_SHORT_BLOCK_SIZE
@@ -311,18 +311,18 @@ export function mdctStage(context) {
   /**
    * Transform frequency bands using MDCT
    * @param {Object} input - Block selection results
-   * @param {Array<Float32Array>} input.bands - Three frequency bands
+   * @param {Array<Float64Array>} input.bands - Three frequency bands
    * @param {Array<number>} input.blockModes - Block modes for each band
    * @param {any} input.originalFrame - Original frame data (passed through)
    * @returns {Object} MDCT transform results
-   * @returns {Array<Float32Array>} returns.bands - Original frequency bands
-   * @returns {Float32Array} returns.coefficients - MDCT coefficients (512 samples)
+   * @returns {Array<Float64Array>} returns.bands - Original frequency bands
+   * @returns {Float64Array} returns.coefficients - MDCT coefficients (512 samples)
    * @returns {Array<number>} returns.blockModes - Block modes
    * @returns {any} returns.originalFrame - Original frame data
    */
   return (input) => {
     const { bands, blockModes, originalFrame } = input
-    const coefficients = new Float32Array(512)
+    const coefficients = new Float64Array(512)
 
     bands.forEach((bandSamples, bandIndex) => {
       const transformed = transformBand(
@@ -359,7 +359,7 @@ export function quantizationStage() {
   /**
    * Perform RDO bit allocation and quantization
    * @param {Object} input - MDCT transform results
-   * @param {Float32Array} input.coefficients - MDCT coefficients
+   * @param {Float64Array} input.coefficients - MDCT coefficients
    * @param {Array<number>} input.blockModes - Block modes
    * @returns {Object} Quantization results ready for bitstream encoding
    * @returns {number} returns.nBfu - Number of active BFUs

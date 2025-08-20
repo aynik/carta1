@@ -9,7 +9,7 @@ describe('FFT', () => {
     'should correctly calculate the DC component for size %i',
     (size) => {
       const real = TEST_SIGNALS.dc(1.0, size)
-      const imag = new Float32Array(size)
+      const imag = new Float64Array(size)
 
       FFT.fft(real, imag)
 
@@ -33,7 +33,7 @@ describe('FFT', () => {
       const freq = (targetBin * sampleRate) / size
 
       const real = TEST_SIGNALS.sine(freq, sampleRate, size)
-      const imag = new Float32Array(size)
+      const imag = new Float64Array(size)
 
       FFT.fft(real, imag)
 
@@ -47,7 +47,7 @@ describe('FFT', () => {
     "should satisfy Parseval's theorem (energy conservation) for size %i",
     (size) => {
       const real = TEST_SIGNALS.whiteNoise(1, size)
-      const imag = new Float32Array(size)
+      const imag = new Float64Array(size)
 
       let timeEnergy = 0
       for (let i = 0; i < size; i++) {
@@ -69,21 +69,21 @@ describe('FFT', () => {
   it.each(fftSizes)('should demonstrate linearity for size %i', (size) => {
     const signal1 = TEST_SIGNALS.sine(440, 44100, size)
     const signal2 = TEST_SIGNALS.sine(880, 44100, size)
-    const combinedSignal = new Float32Array(size)
+    const combinedSignal = new Float64Array(size)
     for (let i = 0; i < size; i++) {
       combinedSignal[i] = signal1[i] + signal2[i]
     }
 
-    const real1 = new Float32Array(signal1)
-    const imag1 = new Float32Array(size)
+    const real1 = new Float64Array(signal1)
+    const imag1 = new Float64Array(size)
     FFT.fft(real1, imag1)
 
-    const real2 = new Float32Array(signal2)
-    const imag2 = new Float32Array(size)
+    const real2 = new Float64Array(signal2)
+    const imag2 = new Float64Array(size)
     FFT.fft(real2, imag2)
 
-    const combinedReal = new Float32Array(combinedSignal)
-    const combinedImag = new Float32Array(size)
+    const combinedReal = new Float64Array(combinedSignal)
+    const combinedImag = new Float64Array(size)
     FFT.fft(combinedReal, combinedImag)
 
     for (let i = 0; i < size; i++) {

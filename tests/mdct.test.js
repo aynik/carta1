@@ -68,9 +68,9 @@ describe('MDCT and IMDCT', () => {
   describe('overlapAdd', () => {
     it('should correctly perform overlap-add with windowing', () => {
       const size = 32
-      const prev = new Float32Array(size).fill(1)
-      const curr = new Float32Array(size).fill(0.5)
-      const window = new Float32Array(size * 2).fill(1) // simplified window
+      const prev = new Float64Array(size).fill(1)
+      const curr = new Float64Array(size).fill(0.5)
+      const window = new Float64Array(size * 2).fill(1) // simplified window
 
       const result = overlapAdd(prev, curr, window)
 
@@ -84,7 +84,7 @@ describe('MDCT and IMDCT', () => {
   it('IMDCT should achieve perfect reconstruction with overlap-add', () => {
     // MDCT/IMDCT with overlap-add should give perfect reconstruction via overlap-add
     const size = 32 // Use smaller size for testing
-    const window = new Float32Array(size)
+    const window = new Float64Array(size)
 
     // Create a simple window (sine window)
     for (let i = 0; i < size; i++) {
@@ -92,8 +92,8 @@ describe('MDCT and IMDCT', () => {
     }
 
     // Create overlapping input frames
-    const frame1 = new Float32Array(size)
-    const frame2 = new Float32Array(size)
+    const frame1 = new Float64Array(size)
+    const frame2 = new Float64Array(size)
 
     // Fill with test signal
     for (let i = 0; i < size; i++) {
@@ -102,8 +102,8 @@ describe('MDCT and IMDCT', () => {
     }
 
     // Window the frames
-    const windowed1 = new Float32Array(size)
-    const windowed2 = new Float32Array(size)
+    const windowed1 = new Float64Array(size)
+    const windowed2 = new Float64Array(size)
     for (let i = 0; i < size; i++) {
       windowed1[i] = frame1[i] * window[i]
       windowed2[i] = frame2[i] * window[i]

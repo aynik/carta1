@@ -34,7 +34,7 @@ describe('Encoder Pipeline', () => {
     const encoder = encode(options)
 
     // Frame 1: Complete silence to establish zero baseline
-    const silentFrame = new Float32Array(SAMPLES_PER_FRAME)
+    const silentFrame = new Float64Array(SAMPLES_PER_FRAME)
     encoder(silentFrame)
 
     // Frame 2: Still silent
@@ -42,7 +42,7 @@ describe('Encoder Pipeline', () => {
 
     // Frame 3: VERY loud low-frequency burst to maximize spectral flux
     // Focus on low band (0-5.5kHz) for easier triggering
-    const transientFrame = new Float32Array(SAMPLES_PER_FRAME)
+    const transientFrame = new Float64Array(SAMPLES_PER_FRAME)
 
     // Create a massive low-frequency burst
     // Use multiple low-frequency components for maximum energy

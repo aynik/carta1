@@ -156,7 +156,7 @@ class ProgressTracker {
  * Provides async iteration over WAV file frames for memory-efficient
  * processing of large audio files. Automatically handles:
  * - Multi-channel deinterleaving
- * - Bit depth conversion to float32
+ * - Bit depth conversion to Float64
  * - Frame padding for the last partial frame
  *
  * @class
@@ -225,9 +225,9 @@ class WavReader {
    * Async iterator for streaming WAV file frames
    *
    * @param {number} [frameSize=SAMPLES_PER_FRAME] - Samples per frame
-   * @yields {Float32Array|Array<Float32Array>} Audio frame data
-   *   - Mono: Float32Array of samples
-   *   - Stereo: [left, right] Float32Arrays
+   * @yields {Float64Array|Array<Float64Array>} Audio frame data
+   *   - Mono: Float64Array of samples
+   *   - Stereo: [left, right] Float64Arrays
    */
   async *[Symbol.asyncIterator](frameSize = SAMPLES_PER_FRAME) {
     const fileStream = fs.createReadStream(this.filePath)
@@ -305,23 +305,23 @@ class WavReader {
   }
 
   /**
-   * Process raw PCM buffer into float32 frame data
+   * Process raw PCM buffer into float64 frame data
    *
    * @private
    * @param {Buffer} frameBuffer - Raw PCM data
    * @param {number} frameSize - Number of samples per channel
-   * @returns {Float32Array|Array<Float32Array>} Processed frame data
+   * @returns {Float64Array|Array<Float64Array>} Processed frame data
    */
   _processFrameBuffer(frameBuffer, frameSize) {
     if (this.channels === 1) {
-      const frame = new Float32Array(frameSize)
+      const frame = new Float64Array(frameSize)
       for (let i = 0; i < frameSize; i++) {
         frame[i] = this._sampleToFloat(frameBuffer, i * (this.bitDepth / 8))
       }
       return frame
     } else {
-      const left = new Float32Array(frameSize)
-      const right = new Float32Array(frameSize)
+      const left = new Float64Array(frameSize)
+      const right = new Float64Array(frameSize)
       for (let i = 0; i < frameSize; i++) {
         const offset = i * this.channels * (this.bitDepth / 8)
         left[i] = this._sampleToFloat(frameBuffer, offset)
@@ -332,7 +332,7 @@ class WavReader {
   }
 
   /**
-   * Convert PCM sample to normalized float32 value
+   * Convert PCM sample to normalized Float64 value
    *
    * @private
    * @param {Buffer} buffer - PCM data buffer

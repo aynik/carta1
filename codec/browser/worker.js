@@ -56,7 +56,7 @@ self.onmessage = async (e) => {
 /**
  * Encode PCM audio data to ATRAC1 format
  *
- * @param {Array<Float32Array>} pcmData - PCM audio data [mono] or [left, right]
+ * @param {Array<Float64Array>} pcmData - PCM audio data [mono] or [left, right]
  * @param {Object} options - Encoder options
  * @returns {Promise<Object>} Encoded AEA blob
  */

@@ -11,8 +11,8 @@ import { throwError } from '../utils.js'
 
 /**
  * Perform QMF analysis filtering to split input into low and high frequency bands
- * @param {Float32Array} input - Input audio samples
- * @param {Float32Array} delayLine - QMF delay line state
+ * @param {Float64Array} input - Input audio samples
+ * @param {Float64Array} delayLine - QMF delay line state
  * @param {Object} qmfWorkBuffers - Optional work buffers for processing
  * @returns {Object} Object containing lowBand, highBand, and newDelay
  */
@@ -26,8 +26,8 @@ export function qmfAnalysis(input, delayLine, qmfWorkBuffers = null) {
   workBuffer.set(delayLine)
   workBuffer.set(input, delayLine.length)
 
-  const lowBand = new Float32Array(outputLength)
-  const highBand = new Float32Array(outputLength)
+  const lowBand = new Float64Array(outputLength)
+  const highBand = new Float64Array(outputLength)
 
   for (let i = 0; i < outputLength; i++) {
     let evenSum = 0
@@ -51,9 +51,9 @@ export function qmfAnalysis(input, delayLine, qmfWorkBuffers = null) {
 
 /**
  * Perform QMF synthesis filtering to reconstruct audio from low and high frequency bands
- * @param {Float32Array} lowBand - Low frequency band samples
- * @param {Float32Array} highBand - High frequency band samples
- * @param {Float32Array} delayLine - QMF delay line state
+ * @param {Float64Array} lowBand - Low frequency band samples
+ * @param {Float64Array} highBand - High frequency band samples
+ * @param {Float64Array} delayLine - QMF delay line state
  * @param {Object} qmfWorkBuffers - Optional work buffers for processing
  * @returns {Object} Object containing output and newDelay
  */
@@ -82,7 +82,7 @@ export function qmfSynthesis(
     workBuffer[offset + 1] = 0.5 * (low - high)
   }
 
-  const output = new Float32Array(outputLength)
+  const output = new Float64Array(outputLength)
 
   // Convolution
   for (let i = 0; i < subbandLength; i++) {

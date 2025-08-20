@@ -10,13 +10,13 @@ import { FFT } from '../transforms/fft.js'
 
 /**
  * Perform FFT on time-domain samples and return magnitude spectrum
- * @param {Float32Array} samples - Time-domain samples
+ * @param {Float64Array} samples - Time-domain samples
  * @param {number} fftSize - FFT size (must be power of 2)
- * @returns {Float32Array} Magnitude spectrum (positive frequencies only)
+ * @returns {Float64Array} Magnitude spectrum (positive frequencies only)
  */
 export function performFFT(samples, fftSize) {
-  const real = new Float32Array(fftSize)
-  const imag = new Float32Array(fftSize)
+  const real = new Float64Array(fftSize)
+  const imag = new Float64Array(fftSize)
 
   // Copy samples with zero-padding if necessary
   const copyLen = Math.min(samples.length, fftSize)
@@ -26,7 +26,7 @@ export function performFFT(samples, fftSize) {
   FFT.fft(real, imag)
 
   // Calculate magnitude spectrum for positive frequencies
-  const magnitude = new Float32Array(fftSize / 2)
+  const magnitude = new Float64Array(fftSize / 2)
   for (let i = 0; i < fftSize / 2; i++) {
     magnitude[i] = Math.sqrt(real[i] * real[i] + imag[i] * imag[i])
   }
@@ -36,8 +36,8 @@ export function performFFT(samples, fftSize) {
 
 /**
  * Detect transients by analyzing spectral changes between frames
- * @param {Float32Array} currentCoeffs - Current frame coefficients
- * @param {Float32Array} prevCoeffs - Previous frame coefficients
+ * @param {Float64Array} currentCoeffs - Current frame coefficients
+ * @param {Float64Array} prevCoeffs - Previous frame coefficients
  * @param {number} threshold - Detection threshold
  * @returns {boolean} True if transient detected
  */
@@ -56,8 +56,8 @@ export function detectTransient(currentCoeffs, prevCoeffs, threshold) {
 
 /**
  * Calculate all spectral features for transient detection
- * @param {Float32Array} currentCoeffs - Current frame coefficients
- * @param {Float32Array} prevCoeffs - Previous frame coefficients
+ * @param {Float64Array} currentCoeffs - Current frame coefficients
+ * @param {Float64Array} prevCoeffs - Previous frame coefficients
  * @returns {Object} Computed spectral features
  */
 function calculateSpectralFeatures(currentCoeffs, prevCoeffs) {
@@ -114,7 +114,7 @@ function calculateSpectralFlux(currentCoeffs, prevCoeffs) {
 /**
  * Calculate spectral flatness (geometric mean / arithmetic mean)
  * Measures how noise-like vs tonal the spectrum is
- * @param {Float32Array} coeffs - Spectral coefficients
+ * @param {Float64Array} coeffs - Spectral coefficients
  * @returns {number} Flatness measure (0 = tonal, 1 = noise-like)
  */
 function calculateSpectralFlatness(coeffs) {
@@ -143,7 +143,7 @@ function calculateSpectralFlatness(coeffs) {
 /**
  * Calculate ratio of high-frequency to total energy
  * High values indicate bright/harsh sounds that are perceptually important
- * @param {Float32Array} coeffs - Spectral coefficients
+ * @param {Float64Array} coeffs - Spectral coefficients
  * @returns {number} High-frequency energy ratio (0-1)
  */
 function calculateHighFrequencyRatio(coeffs) {
@@ -165,8 +165,8 @@ function calculateHighFrequencyRatio(coeffs) {
 
 /**
  * Calculate energy change between frames in dB
- * @param {Float32Array} currentCoeffs - Current frame coefficients
- * @param {Float32Array} prevCoeffs - Previous frame coefficients
+ * @param {Float64Array} currentCoeffs - Current frame coefficients
+ * @param {Float64Array} prevCoeffs - Previous frame coefficients
  * @returns {number} Energy change in dB (positive values only)
  */
 function calculateEnergyChange(currentCoeffs, prevCoeffs) {

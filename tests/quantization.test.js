@@ -11,7 +11,7 @@ describe('Quantization', () => {
   describe('quantize and dequantize', () => {
     it('should perform a round-trip with acceptable error', () => {
       // Use coefficients within the scale factor range (max 1.0)
-      const coeffs = new Float32Array([0.123, -0.456, 0.789, -0.95])
+      const coeffs = new Float64Array([0.123, -0.456, 0.789, -0.95])
       const sfIndex = findScaleFactor(coeffs)
       const bits = 8
 
@@ -31,7 +31,7 @@ describe('Quantization', () => {
     })
 
     it('should handle zero input', () => {
-      const coeffs = new Float32Array(4).fill(0)
+      const coeffs = new Float64Array(4).fill(0)
       const quantized = quantize(coeffs, 10, 8)
       expect(quantized.every((v) => v === 0)).toBe(true)
     })
@@ -39,7 +39,7 @@ describe('Quantization', () => {
     it('should clip values outside the quantization range', () => {
       const bits = 4
       const quantRange = (1 << (bits - 1)) - 1
-      const coeffs = new Float32Array([100, -100]) // Values that will exceed the range
+      const coeffs = new Float64Array([100, -100]) // Values that will exceed the range
       const sfIndex = 10
 
       const quantized = quantize(coeffs, sfIndex, bits)
@@ -50,7 +50,7 @@ describe('Quantization', () => {
 
   describe('groupIntoBFUs', () => {
     it('should correctly map coefficients in long block mode', () => {
-      const coeffs = new Float32Array(512)
+      const coeffs = new Float64Array(512)
       for (let i = 0; i < 512; i++) coeffs[i] = i
       const blockModes = [0, 0, 0] // All long
 
@@ -66,7 +66,7 @@ describe('Quantization', () => {
     })
 
     it('should handle different block modes', () => {
-      const coeffs = new Float32Array(512)
+      const coeffs = new Float64Array(512)
       for (let i = 0; i < 512; i++) coeffs[i] = i
       const blockModes = [1, 0, 1] // Mixed modes
 

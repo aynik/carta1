@@ -38,7 +38,7 @@ export const BFU_AMOUNTS = new Int32Array([20, 28, 32, 36, 40, 44, 48, 52])
 export const BFU_BAND_BOUNDARIES = new Int32Array([20, 36, 52])
 
 // BFU center frequencies (Hz)
-export const BFU_FREQUENCIES = new Float32Array([
+export const BFU_FREQUENCIES = new Float64Array([
   172.3, 516.8, 861.3, 1205.9, 1464.3, 1636.5, 1808.8, 1981.1, 2239.5, 2584.0,
   2928.5, 3273.0, 3574.5, 3832.9, 4091.3, 4349.7, 4608.1, 4866.5, 5124.9,
   5383.3, 5641.7, 5900.1, 6158.5, 6416.9, 6696.8, 6998.3, 7299.8, 7601.2,
@@ -69,7 +69,7 @@ export const MDCT_SIZE_LONG = 512
 
 // Window functions
 export const WINDOW_SHORT = (() => {
-  const table = new Float32Array(32)
+  const table = new Float64Array(32)
   for (let i = 0; i < 32; i++) {
     table[i] = Math.sin(((i + 0.5) * Math.PI) / 64)
   }
@@ -82,7 +82,7 @@ export const QMF_DELAY = 46
 export const QMF_HIGH_BAND_DELAY = 39
 
 // QMF prototype filter coefficients
-export const QMF_COEFFS = new Float32Array([
+export const QMF_COEFFS = new Float64Array([
   -0.00001461907, -0.00009205479, -0.000056157569, 0.00030117269, 0.0002422519,
   -0.00085293897, -0.0005205574, 0.0020340169, 0.00078333891, -0.0042153862,
   -0.00075614988, 0.0078402944, -0.000061169922, -0.01344162, 0.0024626821,
@@ -92,7 +92,7 @@ export const QMF_COEFFS = new Float32Array([
 
 // QMF window function
 export const QMF_WINDOW = (() => {
-  const window = new Float32Array(QMF_TAPS)
+  const window = new Float64Array(QMF_TAPS)
   for (let i = 0; i < 24; i++) {
     window[i] = QMF_COEFFS[i] * 2.0
     window[47 - i] = QMF_COEFFS[i] * 2.0
@@ -102,7 +102,7 @@ export const QMF_WINDOW = (() => {
 
 // QMF even/odd taps for optimization
 export const QMF_EVEN = (() => {
-  const even = new Float32Array(24)
+  const even = new Float64Array(24)
   for (let i = 0; i < 24; i++) {
     even[i] = QMF_WINDOW[i * 2]
   }
@@ -110,7 +110,7 @@ export const QMF_EVEN = (() => {
 })()
 
 export const QMF_ODD = (() => {
-  const odd = new Float32Array(24)
+  const odd = new Float64Array(24)
   for (let i = 0; i < 24; i++) {
     odd[i] = QMF_WINDOW[i * 2 + 1]
   }
@@ -153,7 +153,7 @@ export const WORD_LENGTH_BITS = new Int32Array([
   0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
 ])
 export const SCALE_FACTORS = (() => {
-  const table = new Float32Array(64)
+  const table = new Float64Array(64)
   for (let i = 0; i < 64; i++) {
     table[i] = Math.pow(2.0, i / 3.0 - 21)
   }

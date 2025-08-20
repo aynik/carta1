@@ -75,7 +75,7 @@ describe('Transient Detection', () => {
   describe('comprehensive transient detection', () => {
     // Helper to create gentle pink noise
     const createGentleNoise = () => {
-      const frame = new Float32Array(SAMPLES_PER_FRAME)
+      const frame = new Float64Array(SAMPLES_PER_FRAME)
       let prev1 = 0
       let prev2 = 0
       for (let i = 0; i < SAMPLES_PER_FRAME; i++) {
@@ -90,7 +90,7 @@ describe('Transient Detection', () => {
 
     // Helper to create frequency bursts
     const createBurst = (frequencies) => {
-      const frame = new Float32Array(SAMPLES_PER_FRAME)
+      const frame = new Float64Array(SAMPLES_PER_FRAME)
       // Start with silence for half the frame
       frame.fill(0, 0, SAMPLES_PER_FRAME / 2)
       // Then sudden burst in second half
@@ -109,7 +109,7 @@ describe('Transient Detection', () => {
         signals: [
           {
             type: 'silence',
-            create: () => new Float32Array(SAMPLES_PER_FRAME),
+            create: () => new Float64Array(SAMPLES_PER_FRAME),
             shouldTrigger: false,
           },
           {
@@ -140,7 +140,7 @@ describe('Transient Detection', () => {
         signals: [
           {
             type: 'silence',
-            create: () => new Float32Array(SAMPLES_PER_FRAME),
+            create: () => new Float64Array(SAMPLES_PER_FRAME),
             shouldTrigger: false,
           },
           {
@@ -171,7 +171,7 @@ describe('Transient Detection', () => {
         signals: [
           {
             type: 'silence',
-            create: () => new Float32Array(SAMPLES_PER_FRAME),
+            create: () => new Float64Array(SAMPLES_PER_FRAME),
             shouldTrigger: false,
           },
           {
@@ -209,7 +209,7 @@ describe('Transient Detection', () => {
         signals.forEach(({ type, create, shouldTrigger }) => {
           it(`should ${shouldTrigger ? 'detect' : 'not detect'} ${type} as transient with normal threshold`, () => {
             // Establish baseline with silence
-            const baselineSignal = new Float32Array(fftSize)
+            const baselineSignal = new Float64Array(fftSize)
             const baselineCoeffs = performFFT(baselineSignal, fftSize)
 
             // Test signal
@@ -292,11 +292,11 @@ describe('Transient Detection', () => {
 
       // Empty arrays
       expect(
-        detectTransient(new Float32Array(0), new Float32Array(0), 10)
+        detectTransient(new Float64Array(0), new Float64Array(0), 10)
       ).toBe(false)
 
       // Very high threshold
-      expect(detectTransient(coeffs, new Float32Array(size / 2), 99999)).toBe(
+      expect(detectTransient(coeffs, new Float64Array(size / 2), 99999)).toBe(
         false
       )
     })

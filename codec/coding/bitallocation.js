@@ -35,7 +35,7 @@ import {
 
 /**
  * Allocate bits to BFUs using optimized greedy Lp-RDO
- * @param {Array<Float32Array>} bfuData
+ * @param {Array<Float64Array>} bfuData
  * @param {Int32Array} bfuSizes
  * @param {number} maxBfuCount
  * @returns {{bfuCount:number, allocation:Int32Array, scaleFactorIndices:Int32Array}}
@@ -62,7 +62,7 @@ export function allocateBits(bfuData, bfuSizes, maxBfuCount) {
  * bits to the BFUs that provide the greatest distortion reduction per bit spent.
  *
  * @param {number} activeBfuCount
- * @param {Array<Float32Array>} bfuData
+ * @param {Array<Float64Array>} bfuData
  * @param {Int32Array} bfuSizes
  * @param {number} remainingBits
  * @returns {{wordLengths: Int32Array, scaleFactorIndices: Int32Array}}
@@ -150,7 +150,7 @@ function distributeBitsRDO(activeBfuCount, bfuData, bfuSizes, remainingBits) {
 /**
  * Find the optimal scale factor index for a set of coefficients.
  * Same semantics as the original.
- * @param {Float32Array} coefficients
+ * @param {Float64Array} coefficients
  * @returns {number}
  */
 export function findScaleFactor(coefficients) {

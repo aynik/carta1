@@ -43,7 +43,7 @@ import {
 export class AudioProcessor {
   /**
    * Encodes a stream of audio frames to ATRAC1 format
-   * @param {AsyncIterable<Float32Array>|AsyncIterable<[Float32Array, Float32Array]>} audioFrames - Audio frame stream
+   * @param {AsyncIterable<Float64Array>|AsyncIterable<[Float64Array, Float64Array]>} audioFrames - Audio frame stream
    * @param {Object} [options={}] - Encoding options
    * @param {number} [options.channelCount=1] - Number of audio channels (1 or 2)
    * @param {Function} [options.onProgress] - Progress callback function
@@ -73,7 +73,7 @@ export class AudioProcessor {
 
   /**
    * Internal method for encoding mono audio streams
-   * @param {AsyncIterable<Float32Array>} audioFrames - Mono audio frame stream
+   * @param {AsyncIterable<Float64Array>} audioFrames - Mono audio frame stream
    * @param {Function} onProgress - Progress callback function
    * @param {EncoderOptions} encoderOptions - Encoder configuration
    * @returns {AsyncGenerator<Object>} Stream of encoded frame data
@@ -95,7 +95,7 @@ export class AudioProcessor {
 
   /**
    * Internal method for encoding stereo audio streams
-   * @param {AsyncIterable<[Float32Array, Float32Array]>} audioFrames - Stereo audio frame stream
+   * @param {AsyncIterable<[Float64Array, Float64Array]>} audioFrames - Stereo audio frame stream
    * @param {Function} onProgress - Progress callback function
    * @param {EncoderOptions} encoderOptions - Encoder configuration
    * @returns {AsyncGenerator<Object>} Stream of encoded frame data (left then right)
@@ -128,7 +128,7 @@ export class AudioProcessor {
    * @param {Object} [options={}] - Decoding options
    * @param {number} [options.channelCount=1] - Number of audio channels (1 or 2)
    * @param {Function} [options.onProgress] - Progress callback function
-   * @returns {AsyncGenerator<Float32Array>|AsyncGenerator<[Float32Array, Float32Array]>} Stream of decoded PCM frames
+   * @returns {AsyncGenerator<Float64Array>|AsyncGenerator<[Float64Array, Float64Array]>} Stream of decoded PCM frames
    * @throws {Error} If unsupported channel count is provided
    */
   static async *decodeStream(encodedFrames, options = {}) {
@@ -147,7 +147,7 @@ export class AudioProcessor {
    * Internal method for decoding mono audio streams
    * @param {AsyncIterable<Object>} encodedFrames - Mono encoded frame stream
    * @param {Function} onProgress - Progress callback function
-   * @returns {AsyncGenerator<Float32Array>} Stream of decoded mono PCM frames
+   * @returns {AsyncGenerator<Float64Array>} Stream of decoded mono PCM frames
    * @private
    */
   static async *_decodeMonoStream(encodedFrames, onProgress) {
@@ -174,7 +174,7 @@ export class AudioProcessor {
    * Internal method for decoding stereo audio streams
    * @param {AsyncIterable<Object>} encodedFrames - Stereo encoded frame stream (interleaved left/right)
    * @param {Function} onProgress - Progress callback function
-   * @returns {AsyncGenerator<[Float32Array, Float32Array]>} Stream of decoded stereo PCM frame pairs
+   * @returns {AsyncGenerator<[Float64Array, Float64Array]>} Stream of decoded stereo PCM frame pairs
    * @private
    */
   static async *_decodeStereoStream(encodedFrames, onProgress) {
@@ -225,9 +225,9 @@ export class AudioProcessor {
 
   /**
    * Converts channel buffer arrays to frame-based stream format
-   * @param {Float32Array[]} buffers - Array of channel buffers (1 for mono, 2 for stereo)
+   * @param {Float64Array[]} buffers - Array of channel buffers (1 for mono, 2 for stereo)
    * @param {number} [frameSize=SAMPLES_PER_FRAME] - Frame size in samples
-   * @returns {Generator<Float32Array>|Generator<[Float32Array, Float32Array]>} Stream of audio frames
+   * @returns {Generator<Float64Array>|Generator<[Float64Array, Float64Array]>} Stream of audio frames
    * @throws {Error} If unsupported channel count is provided
    */
   static *frameBufferToFrames(buffers, frameSize = SAMPLES_PER_FRAME) {
@@ -236,7 +236,7 @@ export class AudioProcessor {
     if (channelCount === 1) {
       const [left] = buffers
       for (let i = 0; i < left.length; i += frameSize) {
-        const frame = new Float32Array(frameSize)
+        const frame = new Float64Array(frameSize)
         const end = Math.min(i + frameSize, left.length)
         for (let j = 0; j < end - i; j++) {
           frame[j] = left[i + j]
@@ -248,8 +248,8 @@ export class AudioProcessor {
       const maxLength = Math.max(left.length, right.length)
 
       for (let i = 0; i < maxLength; i += frameSize) {
-        const leftFrame = new Float32Array(frameSize)
-        const rightFrame = new Float32Array(frameSize)
+        const leftFrame = new Float64Array(frameSize)
+        const rightFrame = new Float64Array(frameSize)
 
         const end = Math.min(i + frameSize, maxLength)
 
@@ -327,7 +327,7 @@ export class AudioProcessor {
 
   /**
    * Creates a WAV file blob from PCM audio frames
-   * @param {Float32Array[]|Float32Array|[Float32Array, Float32Array][]} pcmFrames - PCM audio frames
+   * @param {Float64Array[]|Float64Array|[Float64Array, Float64Array][]} pcmFrames - PCM audio frames
    * @param {number} [channelCount=1] - Number of audio channels
    * @param {number} [sampleRate=SAMPLE_RATE] - Audio sample rate
    * @returns {Blob} WAV file blob
@@ -347,7 +347,7 @@ export class AudioProcessor {
 
   /**
    * Creates a mono WAV file blob from PCM frames
-   * @param {Float32Array[]} frames - Array of mono PCM frames
+   * @param {Float64Array[]} frames - Array of mono PCM frames
    * @param {number} sampleRate - Audio sample rate
    * @returns {Blob} Mono WAV file blob
    * @private
@@ -383,7 +383,7 @@ export class AudioProcessor {
 
   /**
    * Creates a stereo WAV file blob from PCM frame pairs
-   * @param {[Float32Array, Float32Array][]} framePairs - Array of stereo PCM frame pairs
+   * @param {[Float64Array, Float64Array][]} framePairs - Array of stereo PCM frame pairs
    * @param {number} sampleRate - Audio sample rate
    * @returns {Blob} Stereo WAV file blob
    * @private
@@ -524,9 +524,9 @@ export class AudioProcessor {
 
   /**
    * Assembles PCM frames into a continuous buffer
-   * @param {Float32Array[]|[Float32Array, Float32Array][]} pcmFrames - Array of PCM frames
+   * @param {Float64Array[]|[Float64Array, Float64Array][]} pcmFrames - Array of PCM frames
    * @param {number} channelCount - Number of audio channels
-   * @returns {Float32Array} Continuous PCM buffer (interleaved for stereo)
+   * @returns {Float64Array} Continuous PCM buffer (interleaved for stereo)
    * @throws {Error} If unsupported channel count is provided
    */
   static assemblePcmFrames(pcmFrames, channelCount) {
@@ -535,7 +535,7 @@ export class AudioProcessor {
         (sum, frame) => sum + frame.length,
         0
       )
-      const pcm = new Float32Array(totalSamples)
+      const pcm = new Float64Array(totalSamples)
       let offset = 0
       for (const frame of pcmFrames) {
         pcm.set(frame, offset)
@@ -547,7 +547,7 @@ export class AudioProcessor {
         (sum, [left, right]) => sum + Math.max(left.length, right.length),
         0
       )
-      const pcm = new Float32Array(totalSamples * 2)
+      const pcm = new Float64Array(totalSamples * 2)
 
       let pcmOffset = 0
       for (const [leftFrame, rightFrame] of pcmFrames) {

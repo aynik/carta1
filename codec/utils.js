@@ -33,9 +33,9 @@ export function pipe(context, ...stages) {
 
 /**
  * Pads audio frames and adds flush samples for proper codec delay handling
- * @param {AsyncIterable<Float32Array>} iter - Input frame stream
+ * @param {AsyncIterable<Float64Array>} iter - Input frame stream
  * @param {number} [samplesToFlush=CODEC_DELAY] - Number of samples to flush
- * @yields {Float32Array} Padded frames with flush samples
+ * @yields {Float64Array} Padded frames with flush samples
  */
 export async function* withFlushSamples(iter, samplesToFlush = CODEC_DELAY) {
   let lastFrameLength = SAMPLES_PER_FRAME
@@ -45,27 +45,27 @@ export async function* withFlushSamples(iter, samplesToFlush = CODEC_DELAY) {
       yield frame
     } else {
       // We need to pad
-      const paddedFrame = new Float32Array(SAMPLES_PER_FRAME)
+      const paddedFrame = new Float64Array(SAMPLES_PER_FRAME)
       paddedFrame.set(frame)
       yield paddedFrame
     }
   }
   if (SAMPLES_PER_FRAME - lastFrameLength < samplesToFlush) {
-    yield new Float32Array(SAMPLES_PER_FRAME)
+    yield new Float64Array(SAMPLES_PER_FRAME)
   }
 }
 
 /**
  * Applies delay compensation to PCM frame stream by dropping initial samples
- * @param {AsyncIterable<Float32Array>} pcmFrameStream - Input PCM frame stream
+ * @param {AsyncIterable<Float64Array>} pcmFrameStream - Input PCM frame stream
  * @param {number} [samplesToDrop=CODEC_DELAY] - Number of samples to drop for delay compensation
- * @yields {Float32Array} Delay-compensated PCM frames
+ * @yields {Float64Array} Delay-compensated PCM frames
  */
 export async function* withDelayCompensation(
   pcmFrameStream,
   samplesToDrop = CODEC_DELAY
 ) {
-  let buffer = new Float32Array(0)
+  let buffer = new Float64Array(0)
   let droppedInitialSamples = false
 
   for await (const frame of pcmFrameStream) {
@@ -84,7 +84,7 @@ export async function* withDelayCompensation(
     }
 
     // Concatenate buffer with new frame
-    const combined = new Float32Array(buffer.length + frame.length)
+    const combined = new Float64Array(buffer.length + frame.length)
     combined.set(buffer)
     combined.set(frame, buffer.length)
 
@@ -152,9 +152,9 @@ export function withStereo(monoTransform, ...args) {
  * Used in both MDCT and IMDCT stages to handle spectral reversal required
  * by the ATRAC1 format for mid and high frequency bands.
  *
- * @param {Float32Array} spectrum - Input spectrum coefficients
+ * @param {Float64Array} spectrum - Input spectrum coefficients
  * @param {Object} reversalBuffers - Pre-allocated buffers for different spectrum sizes
- * @returns {Float32Array} Spectrum with reversed coefficient order
+ * @returns {Float64Array} Spectrum with reversed coefficient order
  */
 export function reverseSpectrum(spectrum, reversalBuffers) {
   const reversed = reversalBuffers[spectrum.length]
@@ -177,9 +177,9 @@ export function calculateBandOffset(bandIndex) {
 /**
  * Extracts coefficients for a specific frequency band from the full coefficient array
  *
- * @param {Float32Array} coefficients - Full 512-sample coefficient array
+ * @param {Float64Array} coefficients - Full 512-sample coefficient array
  * @param {number} bandIndex - Band index (0=low, 1=mid, 2=high)
- * @returns {Float32Array} Subarray containing coefficients for the specified band
+ * @returns {Float64Array} Subarray containing coefficients for the specified band
  */
 export function extractBandCoefficients(coefficients, bandIndex) {
   const offsets = [0, 128, 256, 512]

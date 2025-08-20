@@ -9,7 +9,7 @@ describe('QMF Analysis and Synthesis', () => {
 
   it('should achieve perfect reconstruction', () => {
     const signal = TEST_SIGNALS.sine(440, 44100, 512)
-    let delayLine = new Float32Array(QMF_DELAY)
+    let delayLine = new Float64Array(QMF_DELAY)
 
     const { lowBand, highBand, newDelay } = qmfAnalysis(
       signal,
@@ -47,7 +47,7 @@ describe('QMF Analysis and Synthesis', () => {
     const lowSignal = TEST_SIGNALS.sine(lowFreq, sampleRate, size)
     const highSignal = TEST_SIGNALS.sine(highFreq, sampleRate, size)
 
-    let delayLine = new Float32Array(QMF_DELAY)
+    let delayLine = new Float64Array(QMF_DELAY)
 
     const { lowBand: lowBandForLow } = qmfAnalysis(
       lowSignal,
@@ -68,7 +68,7 @@ describe('QMF Analysis and Synthesis', () => {
 
   it('should handle delay correctly', () => {
     const signal = TEST_SIGNALS.impulse(0, 512)
-    let delayLine = new Float32Array(QMF_DELAY)
+    let delayLine = new Float64Array(QMF_DELAY)
 
     const { lowBand, highBand, newDelay } = qmfAnalysis(
       signal,
@@ -97,7 +97,7 @@ describe('QMF Analysis and Synthesis', () => {
   it('should demonstrate aliasing cancellation', () => {
     // A signal at Nyquist/2 should have its alias cancelled.
     const signal = TEST_SIGNALS.sine(11025, 44100, 512)
-    let delayLine = new Float32Array(QMF_DELAY)
+    let delayLine = new Float64Array(QMF_DELAY)
 
     const { lowBand, highBand, newDelay } = qmfAnalysis(
       signal,

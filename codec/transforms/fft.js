@@ -7,8 +7,8 @@ export class FFT {
 
   /**
    * Perform an in-place forward FFT on complex data.
-   * @param {Float32Array} real - Real part of the input/output data
-   * @param {Float32Array} imag - Imaginary part of the input/output data
+   * @param {Float64Array} real - Real part of the input/output data
+   * @param {Float64Array} imag - Imaginary part of the input/output data
    */
   static fft(real, imag) {
     const n = real.length
@@ -123,8 +123,8 @@ export class FFT {
       bitRev[i] = (bitRev[i >>> 1] >>> 1) | ((i & 1) << (log2n - 1))
     }
     const halfN = n >>> 1
-    const cosTbl = new Float32Array(halfN)
-    const sinTbl = new Float32Array(halfN)
+    const cosTbl = new Float64Array(halfN)
+    const sinTbl = new Float64Array(halfN)
     const ang = (-2 * Math.PI) / n
     for (let i = 0; i < halfN; i++) {
       const a = ang * i

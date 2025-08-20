@@ -64,9 +64,9 @@ class Carta1Worker {
   /**
    * Encode PCM audio to ATRAC1 format
    *
-   * @param {Float32Array|Array<Float32Array>} pcmData - PCM audio data
-   *   - Mono: Float32Array
-   *   - Stereo: [left, right] Float32Arrays
+   * @param {Float64Array|Array<Float64Array>} pcmData - PCM audio data
+   *   - Mono: Float64Array
+   *   - Stereo: [left, right] Float64Arrays
    * @param {Object} [options={}] - Encoder options
    * @param {number} [options.transientThresholdLow] - Low band transient threshold
    * @param {number} [options.transientThresholdMid] - Mid band transient threshold

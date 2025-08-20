@@ -59,11 +59,11 @@ export function dequantizationStage() {
    * @param {Array<Int32Array>} frameData.quantizedCoefficients - Quantized coefficient data
    * @param {Array<number>} frameData.blockModes - Block modes for each band
    * @returns {Object} Dequantization results
-   * @returns {Float32Array} returns.coefficients - Reconstructed MDCT coefficients (512 samples)
+   * @returns {Float64Array} returns.coefficients - Reconstructed MDCT coefficients (512 samples)
    * @returns {Array<number>} returns.blockModes - Block modes for each band
    */
   return (frameData) => {
-    const coefficients = new Float32Array(512)
+    const coefficients = new Float64Array(512)
     const {
       nBfu,
       scaleFactorIndices,
@@ -123,13 +123,13 @@ export function imdctStage(context) {
 
   /**
    * Inverse transform a single frequency band.
-   * @param {Float32Array} coeffs
+   * @param {Float64Array} coeffs
    * @param {number} bandIndex
    * @param {number} blockMode
-   * @param {Float32Array} overlapBuffer
+   * @param {Float64Array} overlapBuffer
    * @param {Object} bufferPool
    * @param {Object} config
-   * @returns {Float32Array}
+   * @returns {Float64Array}
    */
   function transformBand(
     coeffs,
@@ -164,13 +164,13 @@ export function imdctStage(context) {
 
   /**
    * Inverse transform using long block.
-   * @param {Float32Array} coeffs
+   * @param {Float64Array} coeffs
    * @param {number} bandIndex
-   * @param {Float32Array} overlapBuffer
+   * @param {Float64Array} overlapBuffer
    * @param {Object} bufferPool
    * @param {Object} config
    * @param {Object} transformFunc
-   * @returns {Float32Array}
+   * @returns {Float64Array}
    */
   function inverseLongBlock(
     coeffs,
@@ -234,12 +234,12 @@ export function imdctStage(context) {
 
   /**
    * Inverse transform using short blocks.
-   * @param {Float32Array} coeffs
+   * @param {Float64Array} coeffs
    * @param {number} bandIndex
-   * @param {Float32Array} overlapBuffer
+   * @param {Float64Array} overlapBuffer
    * @param {Object} bufferPool
    * @param {Object} config
-   * @returns {Float32Array}
+   * @returns {Float64Array}
    */
   function inverseShortBlocks(
     coeffs,
@@ -308,9 +308,9 @@ export function imdctStage(context) {
   /**
    * Transform coefficients back to time domain using inverse MDCT
    * @param {Object} input - Dequantization results
-   * @param {Float32Array} input.coefficients - MDCT coefficients (512 samples)
+   * @param {Float64Array} input.coefficients - MDCT coefficients (512 samples)
    * @param {Array<number>} input.blockModes - Block modes for each band
-   * @returns {Array<Float32Array>} Three reconstructed frequency bands [low, mid, high]
+   * @returns {Array<Float64Array>} Three reconstructed frequency bands [low, mid, high]
    */
   return (input) => {
     const { coefficients, blockModes } = input
@@ -354,8 +354,8 @@ export function qmfSynthesisStage(context) {
 
   /**
    * Reconstruct full-spectrum PCM samples from frequency bands
-   * @param {Array<Float32Array>} bands - Three frequency bands [low, mid, high]
-   * @returns {Float32Array} Reconstructed PCM samples
+   * @param {Array<Float64Array>} bands - Three frequency bands [low, mid, high]
+   * @returns {Float64Array} Reconstructed PCM samples
    */
   return (bands) => {
     // Apply high band delay compensation

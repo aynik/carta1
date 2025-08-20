@@ -26,7 +26,7 @@ import {
 
 /**
  * Quantize coefficients.
- * @param {Float32Array} coefficients
+ * @param {Float64Array} coefficients
  * @param {number} scaleFactorIndex
  * @param {number} bitsPerSample
  * @returns {Int32Array} out
@@ -61,18 +61,18 @@ export function quantize(coefficients, scaleFactorIndex, bitsPerSample) {
  * @param {Int32Array} quantized
  * @param {number} scaleFactorIndex
  * @param {number} bitsPerSample
- * @returns {Float32Array}
+ * @returns {Float64Array}
  */
 export function dequantize(quantized, scaleFactorIndex, bitsPerSample) {
   if (bitsPerSample === 0 || scaleFactorIndex === 0) {
-    return new Float32Array(quantized.length)
+    return new Float64Array(quantized.length)
   }
 
   const scaleFactor = SCALE_FACTORS[scaleFactorIndex]
   const quantRange = (1 << (bitsPerSample - QUANTIZATION_SIGN_BIT_SHIFT)) - 1
   const denormFactor = scaleFactor / quantRange
 
-  const deq = new Float32Array(quantized.length)
+  const deq = new Float64Array(quantized.length)
   for (let i = 0; i < quantized.length; i++) {
     deq[i] = quantized[i] * denormFactor
   }
@@ -101,9 +101,9 @@ export function dequantize(quantized, scaleFactorIndex, bitsPerSample) {
  * - Long blocks (mode 0): Higher frequency resolution, fewer temporal segments
  * - Short blocks (mode 1): Lower frequency resolution, more temporal segments
  *
- * @param {Float32Array} coefficients
+ * @param {Float64Array} coefficients
  * @param {Array<number>} blockModes
- * @returns {{bfuData: Array<Float32Array>, bfuSizes: Array<number>, bfuCount: number}}
+ * @returns {{bfuData: Array<Float64Array>, bfuSizes: Array<number>, bfuCount: number}}
  */
 export function groupIntoBFUs(coefficients, blockModes) {
   const bfuData = []
@@ -123,7 +123,7 @@ export function groupIntoBFUs(coefficients, blockModes) {
       const size = SPECS_PER_BFU[bfuIndex]
       const startPos = startPositions[bfuIndex] - bandStart
       const endPos = startPos + size
-      const bfu = new Float32Array(size)
+      const bfu = new Float64Array(size)
 
       if (startPos >= 0 && endPos <= bandSize) {
         bfu.set(coefficients.subarray(bandStart + startPos, bandStart + endPos))

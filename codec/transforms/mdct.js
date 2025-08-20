@@ -28,7 +28,7 @@ class MDCTBase {
     const omega = (2.0 * Math.PI) / size
     const scaleRoot = Math.sqrt(scale / size)
 
-    this.sinCosTable = new Float32Array(this.halfSize)
+    this.sinCosTable = new Float64Array(this.halfSize)
     for (let i = 0; i < this.quarterSize; i++) {
       const angle = omega * i + alpha
       this.sinCosTable[i * 2] = scaleRoot * Math.cos(angle)
@@ -47,9 +47,9 @@ export class MDCT extends MDCTBase {
 
   /**
    * Perform forward MDCT transform
-   * @param {Float32Array} input - Time-domain input samples
+   * @param {Float64Array} input - Time-domain input samples
    * @param {Object} mdctBuffers - Optional work buffers for FFT
-   * @returns {Float32Array} Frequency-domain MDCT coefficients
+   * @returns {Float64Array} Frequency-domain MDCT coefficients
    */
   transform(input, mdctBuffers = null) {
     const buffers =
@@ -107,7 +107,7 @@ export class MDCT extends MDCTBase {
     FFT.fft(real, imag)
 
     // Post-FFT processing
-    const output = new Float32Array(this.halfSize)
+    const output = new Float64Array(this.halfSize)
     for (let i = 0; i < this.fftSize; i++) {
       const c = this.sinCosTable[i * 2]
       const s = this.sinCosTable[i * 2 + 1]
@@ -132,9 +132,9 @@ export class IMDCT extends MDCTBase {
 
   /**
    * Perform inverse MDCT transform
-   * @param {Float32Array} input - Frequency-domain MDCT coefficients
+   * @param {Float64Array} input - Frequency-domain MDCT coefficients
    * @param {Object} mdctBuffers - Optional work buffers for FFT
-   * @returns {Float32Array} Time-domain output samples
+   * @returns {Float64Array} Time-domain output samples
    */
   transform(input, mdctBuffers = null) {
     const buffers =
@@ -172,7 +172,7 @@ export class IMDCT extends MDCTBase {
     FFT.fft(real, imag)
 
     // Post-FFT butterfly
-    const output = new Float32Array(this.size)
+    const output = new Float64Array(this.size)
 
     for (let i = 0; i < this.fftSize / 2; i++) {
       const i2 = i * 2
@@ -222,14 +222,14 @@ export const imdct512 = new IMDCT(MDCT_SIZE_LONG, MDCT_SIZE_LONG * 2)
 
 /**
  * Perform overlap-add operation for MDCT reconstruction
- * @param {Float32Array} prev - Previous block samples
- * @param {Float32Array} curr - Current block samples
- * @param {Float32Array} window - Window function coefficients
- * @returns {Float32Array} Overlap-added output samples
+ * @param {Float64Array} prev - Previous block samples
+ * @param {Float64Array} curr - Current block samples
+ * @param {Float64Array} window - Window function coefficients
+ * @returns {Float64Array} Overlap-added output samples
  */
 export function overlapAdd(prev, curr, window) {
   const size = prev.length
-  const output = new Float32Array(size * 2)
+  const output = new Float64Array(size * 2)
 
   for (let i = 0; i < size; i++) {
     const w1 = window[i]

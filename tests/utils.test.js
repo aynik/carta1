@@ -42,7 +42,7 @@ describe('Utilities', () => {
   describe('withFlushSamples', async () => {
     async function* createFrameStream(lengths) {
       for (const length of lengths) {
-        yield new Float32Array(length)
+        yield new Float64Array(length)
       }
     }
 
@@ -76,7 +76,7 @@ describe('Utilities', () => {
   describe('withDelayCompensation', async () => {
     async function* createFrameStream(lengths, value = 1) {
       for (const length of lengths) {
-        yield new Float32Array(length).fill(value)
+        yield new Float64Array(length).fill(value)
       }
     }
 
@@ -117,15 +117,15 @@ describe('Utilities', () => {
     async function* createStereoStream(count) {
       for (let i = 0; i < count; i++) {
         yield [
-          new Float32Array(SAMPLES_PER_FRAME).fill(i),
-          new Float32Array(SAMPLES_PER_FRAME).fill(i + 100),
+          new Float64Array(SAMPLES_PER_FRAME).fill(i),
+          new Float64Array(SAMPLES_PER_FRAME).fill(i + 100),
         ]
       }
     }
 
     async function* monoTransform(iter) {
       for await (const frame of iter) {
-        const newFrame = new Float32Array(frame.length)
+        const newFrame = new Float64Array(frame.length)
         for (let i = 0; i < frame.length; i++) {
           newFrame[i] = frame[i] * 2
         }

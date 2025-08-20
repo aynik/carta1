@@ -68,7 +68,7 @@ describe('AudioProcessor', () => {
 
   describe('frameBufferToFrames', () => {
     it('should correctly frame a buffer', () => {
-      const buffer = new Float32Array(SAMPLES_PER_FRAME * 2.5)
+      const buffer = new Float64Array(SAMPLES_PER_FRAME * 2.5)
       const frames = [...AudioProcessor.frameBufferToFrames([buffer])]
       expect(frames.length).toBe(3)
       expect(frames[0].length).toBe(SAMPLES_PER_FRAME)
@@ -96,7 +96,7 @@ describe('AudioProcessor', () => {
 
   describe('createWavBlob', () => {
     it('should create a valid WAV header', async () => {
-      const frames = [new Float32Array(SAMPLES_PER_FRAME)]
+      const frames = [new Float64Array(SAMPLES_PER_FRAME)]
       const blob = AudioProcessor.createWavBlob(frames)
       const buffer = await blob.arrayBuffer()
       const view = new DataView(buffer)
