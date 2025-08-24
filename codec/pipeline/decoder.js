@@ -361,7 +361,7 @@ export function qmfSynthesisStage(context) {
     // Apply high band delay compensation
     const delayedHigh = bufferPool.qmfWorkBuffers.highBandDelay[bands[2].length]
     delayedHigh.set(delays.highBand)
-    delayedHigh.set(bands[2])
+    delayedHigh.set(bands[2], delays.highBand.length)
 
     const highBand = delayedHigh.slice(0, bands[0].length * 2)
     delays.highBand = delayedHigh.slice(bands[0].length * 2)
