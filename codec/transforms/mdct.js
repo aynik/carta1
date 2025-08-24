@@ -28,7 +28,7 @@ class MDCTBase {
     const omega = (2.0 * Math.PI) / size
     const scaleRoot = Math.sqrt(scale / size)
 
-    this.sinCosTable = new Float32Array(this.halfSize)
+    this.sinCosTable = new Float64Array(this.halfSize)
     for (let i = 0; i < this.quarterSize; i++) {
       const angle = omega * i + alpha
       this.sinCosTable[i * 2] = scaleRoot * Math.cos(angle)

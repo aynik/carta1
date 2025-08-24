@@ -69,7 +69,7 @@ export const MDCT_SIZE_LONG = 512
 
 // Window functions
 export const WINDOW_SHORT = (() => {
-  const table = new Float32Array(32)
+  const table = new Float64Array(32)
   for (let i = 0; i < 32; i++) {
     table[i] = Math.sin(((i + 0.5) * Math.PI) / 64)
   }
@@ -153,7 +153,7 @@ export const WORD_LENGTH_BITS = new Int32Array([
   0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
 ])
 export const SCALE_FACTORS = (() => {
-  const table = new Float32Array(64)
+  const table = new Float64Array(64)
   for (let i = 0; i < 64; i++) {
     table[i] = Math.pow(2.0, i / 3.0 - 21)
   }
