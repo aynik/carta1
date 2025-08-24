@@ -29,8 +29,7 @@ describe('AudioProcessor', () => {
       for await (const frame of encodedStream) {
         frames.push(frame)
       }
-      // withFlushSamples adds an extra frame for codec delay
-      expect(frames.length).toBe(3)
+      expect(frames.length).toBe(2)
     })
 
     it('should process a stereo stream independently', async () => {
@@ -42,9 +41,7 @@ describe('AudioProcessor', () => {
       for await (const frame of encodedStream) {
         frames.push(frame)
       }
-      // 2 input frames + 1 flush frame = 3 frames per channel
-      // 3 left frames + 3 right frames = 6 total (interleaved)
-      expect(frames.length).toBe(6)
+      expect(frames.length).toBe(4)
     })
   })
 
@@ -88,9 +85,8 @@ describe('AudioProcessor', () => {
       const { info, frameData } = await AudioProcessor.parseAeaBlob(blob)
 
       expect(info.title).toBe('test')
-      // 2 input frames + 1 flush frame = 3 total frames
-      expect(info.frameCount).toBe(3)
-      expect(frameData.length).toBe(3)
+      expect(info.frameCount).toBe(2)
+      expect(frameData.length).toBe(2)
     })
   })
 

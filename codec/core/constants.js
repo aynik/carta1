@@ -6,7 +6,6 @@
 export const SAMPLE_RATE = 44100
 export const SAMPLES_PER_FRAME = 512
 export const FRAME_RATE = SAMPLE_RATE / SAMPLES_PER_FRAME
-export const CODEC_DELAY = 266
 
 // AEA file format
 export const AEA_MAGIC = new Uint8Array([0x00, 0x08, 0x00, 0x00])

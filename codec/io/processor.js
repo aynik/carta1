@@ -30,12 +30,6 @@ import {
   WAV_DATA_OFFSET,
 } from '../core/constants.js'
 import { serializeFrame, deserializeFrame, AeaFile } from './serialization.js'
-import {
-  withFlushSamples,
-  withDelayCompensation,
-  withStereoFlushSamples,
-  withStereoDelayCompensation,
-} from '../utils.js'
 
 /**
  * Audio processing utility class providing high-level encoding and decoding operations
@@ -83,7 +77,7 @@ export class AudioProcessor {
     const options = encoderOptions || new EncoderOptions()
     const encoder = encode(options)
     let frameIndex = 0
-    for await (const frame of withFlushSamples(audioFrames)) {
+    for await (const frame of audioFrames) {
       const result = encoder(frame)
       yield result
 
@@ -107,9 +101,7 @@ export class AudioProcessor {
     const rightEncoder = encode(options)
     let frameIndex = 0
 
-    for await (const [leftFrame, rightFrame] of withStereoFlushSamples(
-      audioFrames
-    )) {
+    for await (const [leftFrame, rightFrame] of audioFrames) {
       const leftResult = leftEncoder(leftFrame)
       const rightResult = rightEncoder(rightFrame)
 
@@ -167,7 +159,7 @@ export class AudioProcessor {
     }
 
     // Always apply delay compensation
-    yield* withDelayCompensation(rawPcmFrames())
+    yield* rawPcmFrames()
   }
 
   /**
@@ -220,7 +212,7 @@ export class AudioProcessor {
     }
 
     // Always apply stereo delay compensation
-    yield* withStereoDelayCompensation(rawPcmFrames())
+    yield* rawPcmFrames()
   }
 
   /**
