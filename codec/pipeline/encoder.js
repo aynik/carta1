@@ -355,7 +355,10 @@ export function mdctStage(context) {
  * @returns {Function} Stage function that processes MDCT results
  * @throws {Error} If bufferPool is not provided in context
  */
-export function quantizationStage() {
+export function quantizationStage(context) {
+  const options =
+    context?.options ?? throwError('quantizationStage: options is required')
+
   /**
    * Perform RDO bit allocation and quantization
    * @param {Object} input - MDCT transform results
@@ -380,7 +383,7 @@ export function quantizationStage() {
       bfuCount: selectedBfuCount,
       allocation,
       scaleFactorIndices,
-    } = allocateBits(bfuData, bfuSizes, bfuCount)
+    } = allocateBits(bfuData, bfuSizes, bfuCount, options.allocationBias)
 
     const quantizedCoefficients = []
 
