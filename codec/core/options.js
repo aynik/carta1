@@ -18,6 +18,7 @@ class EncoderOptions {
       transientThresholdLow: 1.0,
       transientThresholdMid: 1.5,
       transientThresholdHigh: 2.0,
+      allocationBias: 1.0,
     }
 
     this.metadata = {
@@ -43,6 +44,14 @@ class EncoderOptions {
         description:
           'Controls the transient detection threshold for the high frequency band (11-22kHz). Lower values make detection more sensitive, triggering short blocks more easily. Higher values require stronger transients.',
         range: [0.01, 4],
+        step: 0.01,
+      },
+      allocationBias: {
+        default: this.values.allocationBias,
+        name: 'Bit allocation bias',
+        description:
+          'Controls how bits are distributed across the frequency spectrum during allocation. Higher values focus more bits on loud spectral components, while lower values spread bits more evenly across frequencies.',
+        range: [0.5, 3.0],
         step: 0.01,
       },
     }
@@ -111,6 +120,10 @@ class EncoderOptions {
 
   get transientThresholdHigh() {
     return this.values.transientThresholdHigh
+  }
+
+  get allocationBias() {
+    return this.values.allocationBias
   }
 
   getMetadata(key) {

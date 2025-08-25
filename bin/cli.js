@@ -22,6 +22,7 @@ import wav from 'wav'
 import { AudioProcessor } from '../codec/io/processor.js'
 import { AeaReader } from '../codec/io/readers.js'
 import { deserializeFrame, AeaFile } from '../codec/io/serialization.js'
+import { EncoderOptions } from '../codec/core/options.js'
 import {
   SAMPLE_RATE,
   SAMPLES_PER_FRAME,
@@ -402,9 +403,16 @@ async function encodeFile(inputFile, outputFile, options) {
       progress.update(reader.sampleRate)
     }
 
+    // Create encoder options with spectrum focus if provided
+    const encoderOptions = new EncoderOptions()
+    if (options.allocationBias !== undefined) {
+      encoderOptions.setValue('allocationBias', options.allocationBias)
+    }
+
     const encodedFrames = AudioProcessor.encodeStream(reader, {
       channelCount: reader.channels,
       onProgress,
+      encoderOptions,
     })
 
     const title = options.title || path.basename(outputFile, '.aea')
@@ -613,10 +621,13 @@ async function dumpFile(inputFile, outputFile, options) {
  * @returns {Promise<void>} Resolves when operation is complete
  */
 async function main() {
+  const { version } = JSON.parse(
+    fs.readFileSync(new URL('../package.json', import.meta.url))
+  )
   program
     .name('carta1')
     .description('ATRAC1 Audio Codec')
-    .version('1.0.0')
+    .version(version)
     .option('-e, --encode', 'Encode WAV to AEA')
     .option('-d, --decode', 'Decode AEA to WAV')
     .option('-j, --json', 'Dump AEA file structure to JSON')
@@ -625,6 +636,11 @@ async function main() {
     .option(
       '-t, --title <title>',
       'Custom title for AEA file metadata (encoding only)'
+    )
+    .option(
+      '-b, --bias <value>',
+      'Bit allocation bias (default: 1.0)',
+      parseFloat
     )
     .argument('<input>', 'Input file path')
     .argument('<output>', 'Output file path')

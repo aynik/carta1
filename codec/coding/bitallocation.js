@@ -38,14 +38,21 @@ import {
  * @param {Array<Float32Array>} bfuData
  * @param {Int32Array} bfuSizes
  * @param {number} maxBfuCount
+ * @param {number} allocationBias
  * @returns {{bfuCount:number, allocation:Int32Array, scaleFactorIndices:Int32Array}}
  */
-export function allocateBits(bfuData, bfuSizes, maxBfuCount) {
+export function allocateBits(bfuData, bfuSizes, maxBfuCount, allocationBias) {
   const usedBFU = maxBfuCount
   const avail =
     FRAME_BITS - FRAME_OVERHEAD_BITS - usedBFU * BITS_PER_BFU_METADATA
 
-  const rdoResult = distributeBitsRDO(usedBFU, bfuData, bfuSizes, avail)
+  const rdoResult = distributeBitsRDO(
+    usedBFU,
+    bfuData,
+    bfuSizes,
+    avail,
+    allocationBias
+  )
 
   return {
     bfuCount: usedBFU,
@@ -65,9 +72,16 @@ export function allocateBits(bfuData, bfuSizes, maxBfuCount) {
  * @param {Array<Float32Array>} bfuData
  * @param {Int32Array} bfuSizes
  * @param {number} remainingBits
+ * @param {number} allocationBias
  * @returns {{wordLengths: Int32Array, scaleFactorIndices: Int32Array}}
  */
-function distributeBitsRDO(activeBfuCount, bfuData, bfuSizes, remainingBits) {
+function distributeBitsRDO(
+  activeBfuCount,
+  bfuData,
+  bfuSizes,
+  remainingBits,
+  allocationBias
+) {
   const scaleFactorTable = new Int32Array(NUM_BFUS)
   const wordLengths = new Int32Array(activeBfuCount)
 
@@ -79,13 +93,15 @@ function distributeBitsRDO(activeBfuCount, bfuData, bfuSizes, remainingBits) {
     const scaleFactor = SCALE_FACTORS[sfi]
     if (scaleFactor === 0) return 0
 
+    const effectiveScaleFactor = Math.pow(scaleFactor, allocationBias)
+
     const bits1 = WORD_LENGTH_BITS[currentWl] | 0
     const bits2 = WORD_LENGTH_BITS[nextWl] | 0
 
     const f1 = bits1 === 0 ? 2.0 : INV_POWER_OF_TWO[bits1]
     const f2 = INV_POWER_OF_TWO[bits2]
 
-    return scaleFactor * (f1 - f2)
+    return effectiveScaleFactor * (f1 - f2)
   }
 
   for (let bfuIndex = 0; bfuIndex < activeBfuCount; bfuIndex++) {
