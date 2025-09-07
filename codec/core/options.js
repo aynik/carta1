@@ -19,6 +19,7 @@ class EncoderOptions {
       transientThresholdMid: 1.5,
       transientThresholdHigh: 2.0,
       allocationBias: 1.0,
+      fixedBlockModes: null,
     }
 
     this.metadata = {
@@ -54,6 +55,13 @@ class EncoderOptions {
         range: [0.5, 3.0],
         step: 0.01,
       },
+      fixedBlockModes: {
+        default: this.values.fixedBlockModes,
+        name: 'Fixed block modes',
+        description:
+          'Override transient detection and use fixed block modes. Format: [low, mid, high] where low/mid can be 0 or 2, high can be 0 or 3. When set, transient detection is skipped.',
+        type: 'array',
+      },
     }
 
     // Apply user-provided options
@@ -86,12 +94,15 @@ class EncoderOptions {
     }
 
     const meta = this.metadata[key]
-    const [min, max] = meta.range
 
-    if (value < min || value > max) {
-      throw new Error(
-        `Value for ${key} must be between ${min} and ${max}, got ${value}`
-      )
+    // Skip range validation for array types
+    if (meta.type !== 'array') {
+      const [min, max] = meta.range
+      if (value < min || value > max) {
+        throw new Error(
+          `Value for ${key} must be between ${min} and ${max}, got ${value}`
+        )
+      }
     }
 
     this.values[key] = value
@@ -124,6 +135,10 @@ class EncoderOptions {
 
   get allocationBias() {
     return this.values.allocationBias
+  }
+
+  get fixedBlockModes() {
+    return this.values.fixedBlockModes
   }
 
   getMetadata(key) {

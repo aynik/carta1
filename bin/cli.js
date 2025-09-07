@@ -83,6 +83,57 @@ function validateTitle(title) {
 }
 
 /**
+ * Validate fixed block modes format and values
+ *
+ * @param {string} modes - Modes string in format "a,b,c"
+ * @returns {Object} Validation result
+ * @returns {boolean} returns.valid - Whether modes are valid
+ * @returns {Array<number>} [returns.modes] - Parsed modes if valid
+ * @returns {string} [returns.error] - Error message if invalid
+ */
+function validateModes(modes) {
+  if (!modes) {
+    return { valid: true }
+  }
+
+  const parts = modes.split(',')
+  if (parts.length !== 3) {
+    return {
+      valid: false,
+      error: `Modes must have exactly 3 values separated by commas, got ${parts.length}`,
+    }
+  }
+
+  const parsedModes = []
+  const validValues = [
+    [0, 2], // Position 1: 0 or 2
+    [0, 2], // Position 2: 0 or 2
+    [0, 3], // Position 3: 0 or 3
+  ]
+
+  for (let i = 0; i < 3; i++) {
+    const mode = parseInt(parts[i], 10)
+    if (isNaN(mode)) {
+      return {
+        valid: false,
+        error: `Mode at position ${i + 1} is not a number: "${parts[i]}"`,
+      }
+    }
+
+    if (!validValues[i].includes(mode)) {
+      return {
+        valid: false,
+        error: `Mode at position ${i + 1} must be ${validValues[i].join(' or ')}, got ${mode}`,
+      }
+    }
+
+    parsedModes.push(mode)
+  }
+
+  return { valid: true, modes: parsedModes }
+}
+
+/**
  * Progress tracking utility for encoding/decoding operations
  *
  * Displays a progress bar with real-time performance metrics including:
@@ -386,6 +437,16 @@ async function encodeFile(inputFile, outputFile, options) {
     }
   }
 
+  // Validate modes if provided
+  let fixedBlockModes = null
+  if (options.modes) {
+    const validation = validateModes(options.modes)
+    if (!validation.valid) {
+      throw new Error(validation.error)
+    }
+    fixedBlockModes = validation.modes
+  }
+
   if (!options.quiet) {
     const bitrate = Math.round((BITRATE_PER_CHANNEL * reader.channels) / 1000)
     console.log(
@@ -407,6 +468,9 @@ async function encodeFile(inputFile, outputFile, options) {
     const encoderOptions = new EncoderOptions()
     if (options.bias !== undefined) {
       encoderOptions.setValue('allocationBias', options.bias)
+    }
+    if (fixedBlockModes) {
+      encoderOptions.setValue('fixedBlockModes', fixedBlockModes)
     }
 
     const encodedFrames = AudioProcessor.encodeStream(reader, {
@@ -642,6 +706,10 @@ async function main() {
       'Bit allocation bias (default: 1.0)',
       parseFloat
     )
+    .option(
+      '-m, --modes <modes>',
+      'Fixed block modes [0/2],[0/2],[0/3] for low,mid,high bands (skips transient detection)'
+    )
     .argument('<input>', 'Input file path')
     .argument('<output>', 'Output file path')
     .parse()
@@ -693,3 +761,5 @@ main().catch((error) => {
   console.error(error.stack)
   process.exit(1)
 })
+
+export { validateModes }

@@ -125,17 +125,24 @@ export function blockSelectorStage(context) {
    */
   return (input) => {
     const { bands } = input
-    const fftSizes = [FFT_SIZE_LOW, FFT_SIZE_MID, FFT_SIZE_HIGH]
-    const blockModes = bands.map((bandSamples, bandIndex) => {
-      const coeffs = performFFT(bandSamples, fftSizes[bandIndex])
-      const transient = detectTransient(
-        coeffs,
-        bufferPool.transientDetection[bandIndex],
-        options.transientThresholdLow
-      )
-      bufferPool.transientDetection[bandIndex] = coeffs
-      return transient * Math.max(bandIndex + 1, 2)
-    })
+
+    // Use fixed block modes if provided, otherwise do transient detection
+    let blockModes
+    if (options.fixedBlockModes) {
+      blockModes = options.fixedBlockModes
+    } else {
+      const fftSizes = [FFT_SIZE_LOW, FFT_SIZE_MID, FFT_SIZE_HIGH]
+      blockModes = bands.map((bandSamples, bandIndex) => {
+        const coeffs = performFFT(bandSamples, fftSizes[bandIndex])
+        const transient = detectTransient(
+          coeffs,
+          bufferPool.transientDetection[bandIndex],
+          options.transientThresholdLow
+        )
+        bufferPool.transientDetection[bandIndex] = coeffs
+        return transient * Math.max(bandIndex + 1, 2)
+      })
+    }
 
     return {
       bands,
