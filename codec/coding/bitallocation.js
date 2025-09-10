@@ -5,21 +5,20 @@
  * responsible for distributing available bits across frequency bands to minimize
  * perceptual distortion while maintaining the target bitrate.
  *
- * The module uses Rate-Distortion Optimization (RDO) with a greedy algorithm
- * that allocates bits to Band Frequency Units (BFUs) based on the perceptual
- * benefit per bit spent. It employs psychoacoustic modeling to determine
- * scale factors and uses a priority queue to efficiently find the optimal
- * bit distribution.
+ * The module uses Rate-Distortion Optimization (RDO) by searching over a
+ * predefined set of valid Band Frequency Unit (BFU) counts. For each count,
+ * it performs a greedy bit distribution to find the best allocation. This
+ * approach optimally trades off the cost of encoding more frequency bands
+ * (metadata overhead) against the benefit of reducing truncation distortion.
  *
  * Key components:
- * - RDO-based bit allocation using exponential distortion modeling
- * - Scale factor computation for each frequency band
- * - Max-heap priority queue for greedy optimization
- * - Support for variable word lengths per BFU
+ * - RDO search over valid BFU counts to select the optimal number of bands.
+ * - Greedy bit allocation for a fixed BFU count using a max-heap.
+ * - Exponential distortion modeling based on scale factors.
+ * - Support for variable word lengths per BFU.
  *
- * The algorithm ensures that bits are allocated where they provide the
- * greatest reduction in audible distortion, resulting in high-quality
- * audio compression at the target bitrate.
+ * The algorithm ensures that the codec dynamically adapts the encoded bandwidth
+ * to best match the signal characteristics for the given bitrate.
  */
 
 import {
@@ -31,58 +30,158 @@ import {
   WORD_LENGTH_BITS,
   INV_POWER_OF_TWO,
   SCALE_FACTORS,
+  BFU_AMOUNTS,
 } from '../core/constants.js'
 
 /**
- * Allocate bits to BFUs using optimized greedy Lp-RDO
+ * Allocate bits by finding the optimal BFU count and distribution using RDO.
+ * This function searches through the valid BFU counts to find the one that
+ * minimizes the total perceptual distortion.
+ *
  * @param {Array<Float32Array>} bfuData
  * @param {Int32Array} bfuSizes
- * @param {number} maxBfuCount
+ * @param {number} maxBfuCount The maximum BFU index to consider (e.g., from BFU_AMOUNTS)
  * @param {number} allocationBias
  * @returns {{bfuCount:number, allocation:Int32Array, scaleFactorIndices:Int32Array}}
  */
 export function allocateBits(bfuData, bfuSizes, maxBfuCount, allocationBias) {
-  const usedBFU = maxBfuCount
-  const avail =
-    FRAME_BITS - FRAME_OVERHEAD_BITS - usedBFU * BITS_PER_BFU_METADATA
+  const allScaleFactorIndices = new Int32Array(maxBfuCount)
+  const zeroBitDistortions = new Float32Array(maxBfuCount)
 
-  const rdoResult = distributeBitsRDO(
-    usedBFU,
-    bfuData,
-    bfuSizes,
-    avail,
-    allocationBias
-  )
+  for (let i = 0; i < maxBfuCount; i++) {
+    const sz = bfuSizes[i] | 0
+    if (sz === 0) continue
 
-  return {
-    bfuCount: usedBFU,
-    allocation: rdoResult.wordLengths,
-    scaleFactorIndices: rdoResult.scaleFactorIndices,
+    const sfi = findScaleFactor(bfuData[i].subarray(0, sz))
+    allScaleFactorIndices[i] = sfi
+    if (sfi > 0) {
+      const scaleFactor = SCALE_FACTORS[sfi]
+      const effectiveScaleFactor = Math.pow(scaleFactor, allocationBias)
+      zeroBitDistortions[i] = effectiveScaleFactor * 2.0 * sz
+    }
   }
+
+  let bestResult = null
+  let minTotalDistortion = Infinity
+
+  for (const candidateBfuCount of BFU_AMOUNTS) {
+    if (candidateBfuCount > maxBfuCount) continue
+
+    const availableBits =
+      FRAME_BITS -
+      FRAME_OVERHEAD_BITS -
+      candidateBfuCount * BITS_PER_BFU_METADATA
+
+    if (availableBits < 0) continue
+
+    const rdoResult = distributeBitsRDO(
+      candidateBfuCount,
+      bfuSizes,
+      availableBits,
+      allocationBias,
+      allScaleFactorIndices
+    )
+
+    const totalDistortion = calculateTotalDistortion(
+      candidateBfuCount,
+      maxBfuCount,
+      bfuSizes,
+      rdoResult.wordLengths,
+      rdoResult.scaleFactorIndices,
+      allocationBias,
+      zeroBitDistortions
+    )
+
+    if (totalDistortion < minTotalDistortion) {
+      minTotalDistortion = totalDistortion
+      bestResult = {
+        bfuCount: candidateBfuCount,
+        allocation: rdoResult.wordLengths,
+        scaleFactorIndices: rdoResult.scaleFactorIndices,
+      }
+    }
+  }
+
+  if (!bestResult) {
+    const fallbackBfuCount = BFU_AMOUNTS[0]
+    return {
+      bfuCount: fallbackBfuCount,
+      allocation: new Int32Array(fallbackBfuCount),
+      scaleFactorIndices: new Int32Array(NUM_BFUS),
+    }
+  }
+
+  return bestResult
+}
+
+/**
+ * Calculates the total distortion for a given allocation.
+ * This includes quantization distortion for coded bands and truncation
+ * distortion for uncoded bands.
+ * @param {number} activeBfuCount - The number of BFUs that were coded.
+ * @param {number} maxBfuCount - The total number of BFUs considered.
+ * @param {Int32Array} bfuSizes - Sizes of each BFU.
+ * @param {Int32Array} wordLengths - The allocated word length for each active BFU.
+ * @param {Int32Array} scaleFactorIndices - The scale factor index for each BFU.
+ * @param {number} allocationBias - The RDO bias factor.
+ * @param {Float32Array} zeroBitDistortions - Pre-calculated distortion for uncoded bands.
+ * @returns {number} The total calculated distortion.
+ */
+function calculateTotalDistortion(
+  activeBfuCount,
+  maxBfuCount,
+  bfuSizes,
+  wordLengths,
+  scaleFactorIndices,
+  allocationBias,
+  zeroBitDistortions
+) {
+  let totalDistortion = 0.0
+
+  for (let i = 0; i < activeBfuCount; i++) {
+    const wl = wordLengths[i] | 0
+    const bits = WORD_LENGTH_BITS[wl] | 0
+    if (bits === 0) {
+      totalDistortion += zeroBitDistortions[i]
+      continue
+    }
+
+    const sfi = scaleFactorIndices[i]
+    if (sfi === 0) continue
+
+    const scaleFactor = SCALE_FACTORS[sfi]
+    const effectiveScaleFactor = Math.pow(scaleFactor, allocationBias)
+    const distortionFactor = INV_POWER_OF_TWO[bits]
+
+    totalDistortion += effectiveScaleFactor * distortionFactor * bfuSizes[i]
+  }
+
+  for (let i = activeBfuCount; i < maxBfuCount; i++) {
+    totalDistortion += zeroBitDistortions[i]
+  }
+
+  return totalDistortion
 }
 
 /**
  * Distributes available bits across Band Frequency Units (BFUs) using Rate-Distortion Optimization.
- *
- * This function implements an optimized greedy RDO allocator that minimizes perceptual distortion
- * while staying within the bit budget. It uses a priority queue (max-heap) to greedily allocate
- * bits to the BFUs that provide the greatest distortion reduction per bit spent.
+ * (Modified to accept pre-calculated scale factors)
  *
  * @param {number} activeBfuCount
- * @param {Array<Float32Array>} bfuData
  * @param {Int32Array} bfuSizes
  * @param {number} remainingBits
  * @param {number} allocationBias
+ * @param {Int32Array} allScaleFactorIndices - Pre-calculated SFIs for all potential BFUs.
  * @returns {{wordLengths: Int32Array, scaleFactorIndices: Int32Array}}
  */
 function distributeBitsRDO(
   activeBfuCount,
-  bfuData,
   bfuSizes,
   remainingBits,
-  allocationBias
+  allocationBias,
+  allScaleFactorIndices
 ) {
-  const scaleFactorTable = new Int32Array(NUM_BFUS)
+  const scaleFactorTable = allScaleFactorIndices
   const wordLengths = new Int32Array(activeBfuCount)
 
   const heapIndices = []
@@ -108,9 +207,7 @@ function distributeBitsRDO(
     const sz = bfuSizes[bfuIndex] | 0
     if (sz === 0) continue
 
-    const sfi = findScaleFactor(bfuData[bfuIndex].subarray(0, sz))
-    scaleFactorTable[bfuIndex] = sfi
-
+    const sfi = scaleFactorTable[bfuIndex]
     if (sfi === 0) continue
 
     const currentWl = 0

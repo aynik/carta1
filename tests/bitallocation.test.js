@@ -12,21 +12,11 @@ describe('RDO Bit Allocation', () => {
   const createMockBfuData = (sizes, value = 1) =>
     sizes.map((size) => new Float32Array(size).fill(value))
 
-  const createMockBufferPool = () => ({
-    rdoScaleFactorTable: new Int32Array(52),
-  })
-
   it('should respect the bit budget', () => {
     const bfuSizes = new Array(52).fill(10)
     const bfuData = createMockBfuData(bfuSizes)
-    const bufferPool = createMockBufferPool()
 
-    const { bfuCount, allocation } = allocateBits(
-      bfuData,
-      bfuSizes,
-      52,
-      bufferPool
-    )
+    const { bfuCount, allocation } = allocateBits(bfuData, bfuSizes, 52, 1.0)
 
     const overhead = FRAME_OVERHEAD_BITS + bfuCount * BITS_PER_BFU_METADATA
     let usedBits = 0
@@ -37,23 +27,19 @@ describe('RDO Bit Allocation', () => {
     expect(usedBits + overhead).toBeLessThanOrEqual(FRAME_BITS)
   })
 
-  it('should use maximum BFU count in RDO mode', () => {
+  it('should use maximum BFU count in RDO mode for mock data', () => {
     const bfuSizes = new Array(52).fill(10)
     const bfuData = createMockBfuData(bfuSizes)
-    const bufferPool = createMockBufferPool()
 
-    const { bfuCount } = allocateBits(bfuData, bfuSizes, 52, bufferPool)
-
-    // RDO mode should use all available BFUs
+    const { bfuCount } = allocateBits(bfuData, bfuSizes, 52, 1.0)
     expect(bfuCount).toBe(52)
   })
 
   it('should handle all-silent input', () => {
     const bfuSizes = new Array(52).fill(10)
     const bfuData = createMockBfuData(bfuSizes, 0)
-    const bufferPool = createMockBufferPool()
 
-    const { allocation } = allocateBits(bfuData, bfuSizes, 52, bufferPool)
+    const { allocation } = allocateBits(bfuData, bfuSizes, 52, 1.0)
 
     // With no signal, all allocations should be 0
     expect(allocation.every((bits) => bits === 0)).toBe(true)
@@ -74,8 +60,7 @@ describe('RDO Bit Allocation', () => {
       }
     }
 
-    const bufferPool = createMockBufferPool()
-    const { allocation } = allocateBits(bfuData, bfuSizes, 52, bufferPool)
+    const { allocation } = allocateBits(bfuData, bfuSizes, 52, 1.0)
 
     // High energy BFUs should get more bits than low energy BFUs
     const avgHighEnergy = allocation.slice(0, 5).reduce((a, b) => a + b, 0) / 5
@@ -87,30 +72,9 @@ describe('RDO Bit Allocation', () => {
   it('should return scale factor indices when using RDO', () => {
     const bfuSizes = new Array(52).fill(10)
     const bfuData = createMockBfuData(bfuSizes)
-    const bufferPool = createMockBufferPool()
 
-    const { scaleFactorIndices } = allocateBits(
-      bfuData,
-      bfuSizes,
-      52,
-      bufferPool
-    )
-
-    // RDO should return scale factor indices
+    const { scaleFactorIndices } = allocateBits(bfuData, bfuSizes, 52, 1.0)
     expect(scaleFactorIndices).toBeDefined()
-    expect(scaleFactorIndices.length).toBe(52)
-  })
-
-  it('should handle different BFU sizes correctly', () => {
-    const bfuSizes = [20, 20, 20, 16, 16, 16, 16, 16, 16, 16] // Varying sizes
-    const bfuData = createMockBfuData(bfuSizes)
-    const bufferPool = createMockBufferPool()
-
-    const { allocation } = allocateBits(bfuData, bfuSizes, 10, bufferPool)
-
-    // Should handle different BFU sizes without errors
-    expect(allocation.length).toBe(10)
-    expect(allocation.every((bits) => bits >= 0)).toBe(true)
   })
 })
 

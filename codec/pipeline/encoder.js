@@ -392,11 +392,16 @@ export function quantizationStage(context) {
       scaleFactorIndices,
     } = allocateBits(bfuData, bfuSizes, bfuCount, options.allocationBias)
 
+    const slicedWordLengthIndices = allocation.slice(0, selectedBfuCount)
+    const slicedScaleFactorIndices = scaleFactorIndices.slice(
+      0,
+      selectedBfuCount
+    )
     const quantizedCoefficients = []
 
     for (let bfu = 0; bfu < selectedBfuCount; bfu++) {
       const data = bfuData[bfu].subarray(0, bfuSizes[bfu])
-      const wordLength = allocation[bfu]
+      const wordLength = slicedWordLengthIndices[bfu]
       const bitsPerSample = WORD_LENGTH_BITS[wordLength]
       const quantized = quantize(data, scaleFactorIndices[bfu], bitsPerSample)
       quantizedCoefficients.push(quantized)
@@ -404,8 +409,8 @@ export function quantizationStage(context) {
 
     return {
       nBfu: selectedBfuCount,
-      scaleFactorIndices,
-      wordLengthIndices: allocation.slice(0, selectedBfuCount),
+      scaleFactorIndices: slicedScaleFactorIndices,
+      wordLengthIndices: slicedWordLengthIndices,
       quantizedCoefficients,
       blockModes,
     }
