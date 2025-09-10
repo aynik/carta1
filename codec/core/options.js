@@ -52,7 +52,7 @@ class EncoderOptions {
         name: 'Bit allocation bias',
         description:
           'Controls how bits are distributed across the frequency spectrum during allocation. Higher values focus more bits on loud spectral components, while lower values spread bits more evenly across frequencies.',
-        range: [0.5, 3.0],
+        range: [0.0, 5.0],
         step: 0.01,
       },
       fixedBlockModes: {

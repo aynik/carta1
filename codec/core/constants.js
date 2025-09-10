@@ -158,3 +158,22 @@ export const INV_POWER_OF_TWO = (() => {
   }
   return table
 })()
+
+export const WORD_LENGTH_DELTA_BITS = (() => {
+  const table = new Int32Array(MAX_WORD_LENGTH_INDEX)
+  for (let i = 0; i < MAX_WORD_LENGTH_INDEX; i++) {
+    table[i] = (WORD_LENGTH_BITS[i + 1] - WORD_LENGTH_BITS[i]) | 0
+  }
+  return table
+})()
+
+export const DISTORTION_DELTA_FACTORS = (() => {
+  const table = new Float64Array(MAX_WORD_LENGTH_INDEX)
+  table[0] = 2.0 - INV_POWER_OF_TWO[WORD_LENGTH_BITS[1]]
+  for (let i = 1; i < MAX_WORD_LENGTH_INDEX; i++) {
+    const bits1 = WORD_LENGTH_BITS[i] | 0
+    const bits2 = WORD_LENGTH_BITS[i + 1] | 0
+    table[i] = INV_POWER_OF_TWO[bits1] - INV_POWER_OF_TWO[bits2]
+  }
+  return table
+})()

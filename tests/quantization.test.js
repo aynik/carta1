@@ -12,7 +12,7 @@ describe('Quantization', () => {
     it('should perform a round-trip with acceptable error', () => {
       // Use coefficients within the scale factor range (max 1.0)
       const coeffs = new Float32Array([0.123, -0.456, 0.789, -0.95])
-      const sfIndex = findScaleFactor(coeffs)
+      const sfIndex = findScaleFactor(coeffs, coeffs.length)
       const bits = 8
 
       const quantized = quantize(coeffs, sfIndex, bits)

@@ -31,7 +31,34 @@ import {
   INV_POWER_OF_TWO,
   SCALE_FACTORS,
   BFU_AMOUNTS,
+  WORD_LENGTH_DELTA_BITS,
+  DISTORTION_DELTA_FACTORS,
 } from '../core/constants.js'
+
+const biasedScaleFactorCache = new Map()
+
+/**
+ * Builds and returns a cached table of biased scale factors.
+ *
+ * @param {number} bias
+ * @returns {Float64Array}
+ */
+function buildBiasedScaleFactorTable(bias) {
+  if (biasedScaleFactorCache.has(bias)) {
+    return biasedScaleFactorCache.get(bias)
+  }
+
+  const out = new Float64Array(64)
+  if (bias === 1) {
+    out.set(SCALE_FACTORS)
+  } else {
+    for (let i = 0; i < 64; i++) {
+      out[i] = Math.pow(SCALE_FACTORS[i], bias)
+    }
+  }
+  biasedScaleFactorCache.set(bias, out)
+  return out
+}
 
 /**
  * Allocate bits by finding the optimal BFU count and distribution using RDO.
@@ -40,23 +67,23 @@ import {
  *
  * @param {Array<Float32Array>} bfuData
  * @param {Int32Array} bfuSizes
- * @param {number} maxBfuCount The maximum BFU index to consider (e.g., from BFU_AMOUNTS)
+ * @param {number} maxBfuCount
  * @param {number} allocationBias
  * @returns {{bfuCount:number, allocation:Int32Array, scaleFactorIndices:Int32Array}}
  */
 export function allocateBits(bfuData, bfuSizes, maxBfuCount, allocationBias) {
   const allScaleFactorIndices = new Int32Array(maxBfuCount)
   const zeroBitDistortions = new Float32Array(maxBfuCount)
+  const biasedScaleFactors = buildBiasedScaleFactorTable(allocationBias)
 
   for (let i = 0; i < maxBfuCount; i++) {
     const sz = bfuSizes[i] | 0
     if (sz === 0) continue
 
-    const sfi = findScaleFactor(bfuData[i].subarray(0, sz))
+    const sfi = findScaleFactor(bfuData[i], sz)
     allScaleFactorIndices[i] = sfi
     if (sfi > 0) {
-      const scaleFactor = SCALE_FACTORS[sfi]
-      const effectiveScaleFactor = Math.pow(scaleFactor, allocationBias)
+      const effectiveScaleFactor = biasedScaleFactors[sfi]
       zeroBitDistortions[i] = effectiveScaleFactor * 2.0 * sz
     }
   }
@@ -78,7 +105,7 @@ export function allocateBits(bfuData, bfuSizes, maxBfuCount, allocationBias) {
       candidateBfuCount,
       bfuSizes,
       availableBits,
-      allocationBias,
+      biasedScaleFactors,
       allScaleFactorIndices
     )
 
@@ -88,7 +115,7 @@ export function allocateBits(bfuData, bfuSizes, maxBfuCount, allocationBias) {
       bfuSizes,
       rdoResult.wordLengths,
       rdoResult.scaleFactorIndices,
-      allocationBias,
+      biasedScaleFactors,
       zeroBitDistortions
     )
 
@@ -118,14 +145,14 @@ export function allocateBits(bfuData, bfuSizes, maxBfuCount, allocationBias) {
  * Calculates the total distortion for a given allocation.
  * This includes quantization distortion for coded bands and truncation
  * distortion for uncoded bands.
- * @param {number} activeBfuCount - The number of BFUs that were coded.
- * @param {number} maxBfuCount - The total number of BFUs considered.
- * @param {Int32Array} bfuSizes - Sizes of each BFU.
- * @param {Int32Array} wordLengths - The allocated word length for each active BFU.
- * @param {Int32Array} scaleFactorIndices - The scale factor index for each BFU.
- * @param {number} allocationBias - The RDO bias factor.
- * @param {Float32Array} zeroBitDistortions - Pre-calculated distortion for uncoded bands.
- * @returns {number} The total calculated distortion.
+ * @param {number} activeBfuCount
+ * @param {number} maxBfuCount
+ * @param {Int32Array} bfuSizes
+ * @param {Int32Array} wordLengths
+ * @param {Int32Array} scaleFactorIndices
+ * @param {number} biasedScaleFactors
+ * @param {Float32Array} zeroBitDistortions
+ * @returns {number}
  */
 function calculateTotalDistortion(
   activeBfuCount,
@@ -133,7 +160,7 @@ function calculateTotalDistortion(
   bfuSizes,
   wordLengths,
   scaleFactorIndices,
-  allocationBias,
+  biasedScaleFactors,
   zeroBitDistortions
 ) {
   let totalDistortion = 0.0
@@ -149,8 +176,7 @@ function calculateTotalDistortion(
     const sfi = scaleFactorIndices[i]
     if (sfi === 0) continue
 
-    const scaleFactor = SCALE_FACTORS[sfi]
-    const effectiveScaleFactor = Math.pow(scaleFactor, allocationBias)
+    const effectiveScaleFactor = biasedScaleFactors[sfi]
     const distortionFactor = INV_POWER_OF_TWO[bits]
 
     totalDistortion += effectiveScaleFactor * distortionFactor * bfuSizes[i]
@@ -170,130 +196,106 @@ function calculateTotalDistortion(
  * @param {number} activeBfuCount
  * @param {Int32Array} bfuSizes
  * @param {number} remainingBits
- * @param {number} allocationBias
- * @param {Int32Array} allScaleFactorIndices - Pre-calculated SFIs for all potential BFUs.
+ * @param {Float64Array} biasedScaleFactors
+ * @param {Int32Array} allScaleFactorIndices
  * @returns {{wordLengths: Int32Array, scaleFactorIndices: Int32Array}}
  */
 function distributeBitsRDO(
   activeBfuCount,
   bfuSizes,
   remainingBits,
-  allocationBias,
+  biasedScaleFactors,
   allScaleFactorIndices
 ) {
-  const scaleFactorTable = allScaleFactorIndices
   const wordLengths = new Int32Array(activeBfuCount)
 
-  const heapIndices = []
-  const heapPriorities = []
-
-  const deltaDistPerCoeff = (bfuIndex, currentWl, nextWl) => {
-    const sfi = scaleFactorTable[bfuIndex]
-    const scaleFactor = SCALE_FACTORS[sfi]
-    if (scaleFactor === 0) return 0
-
-    const effectiveScaleFactor = Math.pow(scaleFactor, allocationBias)
-
-    const bits1 = WORD_LENGTH_BITS[currentWl] | 0
-    const bits2 = WORD_LENGTH_BITS[nextWl] | 0
-
-    const f1 = bits1 === 0 ? 2.0 : INV_POWER_OF_TWO[bits1]
-    const f2 = INV_POWER_OF_TWO[bits2]
-
-    return effectiveScaleFactor * (f1 - f2)
-  }
+  const heapIndices = new Int32Array(activeBfuCount)
+  const heapPriorities = new Float32Array(activeBfuCount)
+  let heapSize = 0
 
   for (let bfuIndex = 0; bfuIndex < activeBfuCount; bfuIndex++) {
     const sz = bfuSizes[bfuIndex] | 0
     if (sz === 0) continue
 
-    const sfi = scaleFactorTable[bfuIndex]
+    const sfi = allScaleFactorIndices[bfuIndex]
     if (sfi === 0) continue
 
-    const currentWl = 0
-    const nextWl = 1
-    const deltaBits =
-      (WORD_LENGTH_BITS[nextWl] - WORD_LENGTH_BITS[currentWl]) | 0
+    const deltaBits = WORD_LENGTH_DELTA_BITS[0]
     if (deltaBits <= 0) continue
 
-    const ddPerCoeff = deltaDistPerCoeff(bfuIndex, currentWl, nextWl)
-    heapIndices.push(bfuIndex)
-    heapPriorities.push(ddPerCoeff / deltaBits)
+    const distortionDelta =
+      biasedScaleFactors[sfi] * DISTORTION_DELTA_FACTORS[0]
+
+    heapIndices[heapSize] = bfuIndex
+    heapPriorities[heapSize] = distortionDelta / deltaBits
+    heapSize++
+  }
+
+  if (heapSize === 0) {
+    return { wordLengths, scaleFactorIndices: allScaleFactorIndices }
   }
 
   // Heapify
-  for (let i = (heapIndices.length >> 1) - 1; i >= 0; i--)
-    siftDown(heapIndices, heapPriorities, i)
+  for (let i = (heapSize >> 1) - 1; i >= 0; i--) {
+    siftDown(heapIndices, heapPriorities, i, heapSize)
+  }
 
-  // Greedy spending
-  while (remainingBits > 0 && heapIndices.length > 0) {
+  // Greedy spending loop
+  while (remainingBits > 0 && heapSize > 0) {
     const bfu = heapIndices[0]
     const cur = wordLengths[bfu] | 0
-    const nxt = cur + 1
-
     const sz = bfuSizes[bfu] | 0
-    const deltaBits = (WORD_LENGTH_BITS[nxt] - WORD_LENGTH_BITS[cur]) | 0
+    const deltaBits = WORD_LENGTH_DELTA_BITS[cur]
     const cost = deltaBits * sz
 
     if (cost > remainingBits || cost <= 0) {
-      popRoot(heapIndices, heapPriorities)
+      const last = heapSize - 1
+      heapIndices[0] = heapIndices[last]
+      heapPriorities[0] = heapPriorities[last]
+      heapSize--
+      if (heapSize > 0) siftDown(heapIndices, heapPriorities, 0, heapSize)
       continue
     }
 
     remainingBits -= cost
+    const nxt = cur + 1
     wordLengths[bfu] = nxt
 
-    if (nxt < MAX_WORD_LENGTH_INDEX) {
-      const nxt2 = nxt + 1
-      const deltaBits2 = (WORD_LENGTH_BITS[nxt2] - WORD_LENGTH_BITS[nxt]) | 0
-      if (deltaBits2 > 0) {
-        heapPriorities[0] = deltaDistPerCoeff(bfu, nxt, nxt2) / deltaBits2
-        siftDown(heapIndices, heapPriorities, 0)
-      } else {
-        popRoot(heapIndices, heapPriorities)
-      }
+    const deltaBitsNext = WORD_LENGTH_DELTA_BITS[nxt]
+    if (nxt < MAX_WORD_LENGTH_INDEX && deltaBitsNext > 0) {
+      const sfi = allScaleFactorIndices[bfu]
+      const distortionDelta =
+        biasedScaleFactors[sfi] * DISTORTION_DELTA_FACTORS[nxt]
+      heapPriorities[0] = distortionDelta / deltaBitsNext
+      siftDown(heapIndices, heapPriorities, 0, heapSize)
     } else {
-      popRoot(heapIndices, heapPriorities)
+      const last = heapSize - 1
+      heapIndices[0] = heapIndices[last]
+      heapPriorities[0] = heapPriorities[last]
+      heapSize--
+      if (heapSize > 0) siftDown(heapIndices, heapPriorities, 0, heapSize)
     }
   }
 
-  return { wordLengths, scaleFactorIndices: scaleFactorTable }
+  return { wordLengths, scaleFactorIndices: allScaleFactorIndices }
 }
 
 /**
  * Find the optimal scale factor index for a set of coefficients.
  * Same semantics as the original.
  * @param {Float32Array} coefficients
+ * @param {number} length
  * @returns {number}
  */
-export function findScaleFactor(coefficients) {
+export function findScaleFactor(coefficients, length) {
   let maxAmplitude = 0.0
-  for (let i = 0; i < coefficients.length; i++) {
+  for (let i = 0; i < length; i++) {
     const a = Math.abs(coefficients[i])
     if (a > maxAmplitude) maxAmplitude = a
   }
   if (maxAmplitude === 0) return 0
   const index = Math.ceil(3 * (Math.log2(maxAmplitude) + 21))
   return Math.max(0, Math.min(63, index))
-}
-
-/**
- * Removes the root element from a max-heap and maintains heap property.
- *
- * This function efficiently removes the maximum priority element from the heap
- * by replacing it with the last element and then restoring the heap property
- * through sifting down.
- *
- * @param {Array<number>} heapIndices
- * @param {Array<number>} heapPriorities
- */
-function popRoot(heapIndices, heapPriorities) {
-  const last = heapIndices.length - 1
-  heapIndices[0] = heapIndices[last]
-  heapPriorities[0] = heapPriorities[last]
-  heapIndices.pop()
-  heapPriorities.pop()
-  if (heapIndices.length) siftDown(heapIndices, heapPriorities, 0)
 }
 
 /**
@@ -304,12 +306,12 @@ function popRoot(heapIndices, heapPriorities) {
  * with its children and swaps with the larger child until the heap property
  * is satisfied, or it reaches a leaf position.
  *
- * @param {Array<number>} heapIndices
- * @param {Array<number>} heapPriorities
+ * @param {Int32Array} heapIndices
+ * @param {Float32Array} heapPriorities
  * @param {number} startIndex
+ * @param {number} heapSize
  */
-function siftDown(heapIndices, heapPriorities, startIndex) {
-  const heapSize = heapIndices.length
+function siftDown(heapIndices, heapPriorities, startIndex, heapSize) {
   let i = startIndex
   const idxVal = heapIndices[i]
   const prVal = heapPriorities[i]
