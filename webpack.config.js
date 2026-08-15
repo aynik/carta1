@@ -29,10 +29,11 @@ const builds = [
       libraryTarget: 'module',
       globalObject: 'this',
     },
+    experiments: { outputModule: true },
   },
 ]
 
-export default builds.map(({ entry, output }) => ({
+export default builds.map(({ entry, output, experiments }) => ({
   mode: 'production',
   entry,
   output,
@@ -59,7 +60,5 @@ export default builds.map(({ entry, output }) => ({
     ],
   },
   devtool: 'source-map',
-  experiments: {
-    outputModule: true,
-  },
+  experiments,
 }))

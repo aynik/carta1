@@ -36,6 +36,27 @@ import { serializeFrame, deserializeFrame, AeaFile } from './serialization.js'
  */
 export class AudioProcessor {
   /**
+   * Encode complete planar PCM buffers into an AEA byte image.
+   *
+   * @param {Float32Array[]} channels One or two normalized PCM channels.
+   * @param {Object} [options] Encoder and AEA metadata options.
+   * @returns {Promise<Uint8Array>} Complete AEA byte image.
+   */
+  static encodeAeaPcm(channels, options = {}) {
+    return encodeAeaPcm(channels, options)
+  }
+
+  /**
+   * Decode a complete AEA byte image into planar PCM buffers.
+   *
+   * @param {Uint8Array|ArrayBuffer|Blob} input Complete AEA image.
+   * @returns {Promise<Float32Array[]>} Decoded normalized PCM channels.
+   */
+  static decodeAeaPcm(input) {
+    return decodeAeaPcm(input)
+  }
+
+  /**
    * Encodes a stream of audio frames to ATRAC1 format
    * @param {AsyncIterable<Float32Array>|AsyncIterable<[Float32Array, Float32Array]>} audioFrames - Audio frame stream
    * @param {Object} [options={}] - Encoding options
@@ -555,4 +576,96 @@ export class AudioProcessor {
       throw new Error(`Unsupported channel count: ${channelCount}`)
     }
   }
+}
+
+/**
+ * Encode complete planar PCM buffers into an AEA byte image.
+ *
+ * Encoding options are accepted directly alongside the optional AEA `title`.
+ * The final partial PCM frame is zero-padded.
+ *
+ * @param {Float32Array[]} channels One or two normalized PCM channels.
+ * @param {Object} [options] Encoder and AEA metadata options.
+ * @param {string} [options.title] AEA title.
+ * @param {number} [options.transientThresholdLow] Low-band threshold.
+ * @param {number} [options.transientThresholdMid] Mid-band threshold.
+ * @param {number} [options.transientThresholdHigh] High-band threshold.
+ * @param {number} [options.allocationBias] Bit-allocation bias.
+ * @param {number[]} [options.fixedBlockModes] Fixed low, mid, and high modes.
+ * @returns {Promise<Uint8Array>} Complete AEA byte image.
+ */
+export async function encodeAeaPcm(channels, options = {}) {
+  if (
+    !Array.isArray(channels) ||
+    (channels.length !== 1 && channels.length !== 2) ||
+    channels.some((channel) => !(channel instanceof Float32Array))
+  ) {
+    throw new TypeError('ATRAC1 encoding requires one or two Float32 channels')
+  }
+
+  const { title = 'encoded by carta1', ...encoderValues } = options
+  const frames = AudioProcessor.frameBufferToFrames(channels)
+  const encodedFrames = AudioProcessor.encodeStream(frames, {
+    channelCount: channels.length,
+    encoderOptions: new EncoderOptions(encoderValues),
+  })
+  const blob = await AudioProcessor.createAeaBlob(encodedFrames, {
+    title,
+    channelCount: channels.length,
+  })
+  return new Uint8Array(await blob.arrayBuffer())
+}
+
+/**
+ * Decode a complete AEA byte image into planar normalized PCM buffers.
+ *
+ * AEA does not retain the exact source sample count, so returned channels
+ * include any zero padding from the final encoded frame.
+ *
+ * @param {Uint8Array|ArrayBuffer|Blob} input Complete AEA image.
+ * @returns {Promise<Float32Array[]>} Decoded normalized PCM channels.
+ */
+export async function decodeAeaPcm(input) {
+  let blob
+  if (input instanceof Blob) {
+    blob = input
+  } else if (input instanceof Uint8Array || input instanceof ArrayBuffer) {
+    blob = new Blob([input])
+  } else {
+    throw new TypeError('ATRAC1 decoding requires AEA bytes or a Blob')
+  }
+
+  const { info, frameData } = await AudioProcessor.parseAeaBlob(blob)
+  const frames = AudioProcessor.deserializedFrameStream(frameData)
+  const decodedFrames = await AudioProcessor.collectFrames(
+    AudioProcessor.decodeStream(frames, {
+      channelCount: info.channelCount,
+    })
+  )
+
+  if (info.channelCount === 1) {
+    return [joinChannelFrames(decodedFrames)]
+  }
+
+  return [
+    joinChannelFrames(decodedFrames.map(([left]) => left)),
+    joinChannelFrames(decodedFrames.map(([, right]) => right)),
+  ]
+}
+
+/**
+ * Join complete PCM frames into one channel buffer.
+ *
+ * @param {Float32Array[]} frames PCM frames for one channel.
+ * @returns {Float32Array} Contiguous PCM channel.
+ */
+function joinChannelFrames(frames) {
+  const sampleCount = frames.reduce((total, frame) => total + frame.length, 0)
+  const channel = new Float32Array(sampleCount)
+  let offset = 0
+  for (const frame of frames) {
+    channel.set(frame, offset)
+    offset += frame.length
+  }
+  return channel
 }

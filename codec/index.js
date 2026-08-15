@@ -14,7 +14,7 @@ import { qmfAnalysisStage, mdctStage } from './pipeline/encoder.js'
 import { pipe } from './utils.js'
 import { BufferPool } from './core/buffers.js'
 import { EncoderOptions } from './core/options.js'
-import { AudioProcessor } from './io/processor.js'
+import { AudioProcessor, decodeAeaPcm, encodeAeaPcm } from './io/processor.js'
 import { FFT } from './transforms/fft.js'
 import {
   WORD_LENGTH_BITS,
@@ -37,6 +37,8 @@ export {
   BufferPool,
   EncoderOptions,
   AudioProcessor,
+  decodeAeaPcm,
+  encodeAeaPcm,
   FFT,
   WORD_LENGTH_BITS,
   SPECS_PER_BFU,

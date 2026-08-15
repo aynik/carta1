@@ -52,7 +52,7 @@ export function unpackBits(buffer, bitPosition, bitCount) {
   let bitOffset = bitPosition % 8
   let value = 0
 
-  for (let bitsRead = 0; bitsRead < bitCount && byteIndex < buffer.length; ) {
+  for (let bitsRead = 0; bitsRead < bitCount && byteIndex < buffer.length;) {
     const bitsAvailable = 8 - bitOffset
     const bitsToRead = Math.min(bitCount - bitsRead, bitsAvailable)
 

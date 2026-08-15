@@ -13,18 +13,28 @@ on:
           - minor
           - major
 
+permissions:
+  contents: read
+
+concurrency:
+  group: version-bump
+  cancel-in-progress: false
+
 jobs:
   version:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@v6
         with:
           token: ${{ secrets.PAT_TOKEN }}
+          fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '20.16.0'
 
       - name: Configure Git
         run: |
@@ -33,9 +43,7 @@ jobs:
 
       - name: Bump version
         run: |
-          npm version ${{ github.event.inputs.version }} -m "chore: bump version to %s"
+          npm version "${{ inputs.version }}" -m "chore: bump version to %s"
 
-      - name: Push changes
-        run: |
-          git push
-          git push --tags
+      - name: Push version commit and tag
+        run: git push --follow-tags

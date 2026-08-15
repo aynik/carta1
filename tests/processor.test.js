@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { AudioProcessor } from '../codec/io/processor'
 import { TEST_SIGNALS } from './testSignals'
 import { SAMPLES_PER_FRAME, WAV_HEADER_SIZE } from '../codec/core/constants'
+import { decodeAeaPcm, encodeAeaPcm } from '../codec/index'
 
 describe('AudioProcessor', () => {
   async function* createMonoStream(frameCount) {
@@ -87,6 +88,32 @@ describe('AudioProcessor', () => {
       expect(info.title).toBe('test')
       expect(info.frameCount).toBe(2)
       expect(frameData.length).toBe(2)
+    })
+  })
+
+  describe('complete AEA helpers', () => {
+    it('round-trips complete planar stereo buffers', async () => {
+      const channels = [
+        TEST_SIGNALS.sine(440, 44100, 700),
+        TEST_SIGNALS.sine(880, 44100, 700),
+      ]
+
+      const aea = await encodeAeaPcm(channels, { title: 'complete helper' })
+      const decoded = await decodeAeaPcm(aea)
+
+      expect(aea).toBeInstanceOf(Uint8Array)
+      expect(decoded).toHaveLength(2)
+      expect(decoded[0]).toHaveLength(SAMPLES_PER_FRAME * 2)
+      expect(decoded[1]).toHaveLength(SAMPLES_PER_FRAME * 2)
+    })
+
+    it('rejects unsupported PCM input', async () => {
+      await expect(encodeAeaPcm([])).rejects.toThrow(
+        'one or two Float32 channels'
+      )
+      await expect(decodeAeaPcm('not AEA bytes')).rejects.toThrow(
+        'AEA bytes or a Blob'
+      )
     })
   })
 
