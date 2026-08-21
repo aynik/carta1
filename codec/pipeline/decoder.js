@@ -1,16 +1,13 @@
 /**
  * Carta1 Audio Codec - Decoding Pipeline
  *
- * The decoding pipeline transforms ATRAC1 compressed format back into PCM audio samples
- * through a series of processing stages:
+ * The decoding pipeline transforms ATRAC1 structured syntax back into PCM
+ * samples through two semantic stages:
  *
- * 1. Dequantization: Reconstructs MDCT coefficients from quantized data using scale factors
- * 2. Inverse MDCT: Applies Inverse Modified Discrete Cosine Transform to frequency bands
- * 3. QMF Synthesis: Reconstructs full-spectrum audio using quadrature mirror filters
+ * 1. Dequantization: Reconstructs the continuous ATRAC1 spectrum
+ * 2. Synthesis: Reconstructs PCM through inverse MDCT and QMF applications
  *
- * Each stage is implemented as a functional pipeline component that can be composed
- * using the pipe utility. The pipeline maintains state through a shared context
- * containing buffer pools and decoding options.
+ * Byte unpacking remains the responsibility of deserializeFrame().
  */
 
 import {
@@ -21,7 +18,7 @@ import {
 } from '../utils.js'
 import { qmfSynthesis } from '../transforms/qmf.js'
 import { imdct64, imdct256, imdct512, overlapAdd } from '../transforms/mdct.js'
-import { dequantize } from '../coding/quantization.js'
+import { dequantize as dequantizeCoefficient } from '../coding/quantization.js'
 import { BufferPool } from '../core/buffers.js'
 import {
   BFU_BAND_BOUNDARIES,
@@ -36,7 +33,7 @@ import {
 } from '../core/constants.js'
 
 /**
- * Dequantization Stage - Reconstructs MDCT coefficients from quantized data
+ * Reconstruct MDCT coefficients from quantized data.
  *
  * Reverses the quantization process by:
  * - Reconstructing coefficient values using scale factors and word lengths
@@ -49,7 +46,7 @@ import {
  * @returns {Function} Stage function that processes quantized frame data
  * @throws {Error} If bufferPool is not provided in context
  */
-export function dequantizationStage() {
+export function dequantize() {
   /**
    * Reconstruct MDCT coefficients from quantized data
    * @param {Object} frameData - Quantized frame data
@@ -84,7 +81,7 @@ export function dequantizationStage() {
 
       if (bitsPerSample > 0) {
         const quantized = quantizedCoefficients[bfu]
-        const dequantized = dequantize(
+        const dequantized = dequantizeCoefficient(
           quantized,
           scaleFactorIndices[bfu],
           bitsPerSample
@@ -98,7 +95,7 @@ export function dequantizationStage() {
 }
 
 /**
- * Inverse MDCT Stage - Transforms frequency coefficients back to time domain
+ * Synthesize time-domain bands from frequency coefficients.
  *
  * Applies Inverse Modified Discrete Cosine Transform to reconstruct time-domain
  * samples from frequency coefficients. The transform size depends on block modes:
@@ -113,9 +110,9 @@ export function dequantizationStage() {
  * @returns {Function} Stage function that processes dequantization results
  * @throws {Error} If bufferPool is not provided in context
  */
-export function imdctStage(context) {
+export function synthesizeBands(context) {
   const bufferPool =
-    context?.bufferPool ?? throwError('imdctStage: bufferPool is required')
+    context?.bufferPool ?? throwError('synthesizeBands: bufferPool is required')
   const overlapBuffers = bufferPool.imdctOverlap
 
   // Transform function mapping for each band
@@ -330,7 +327,7 @@ export function imdctStage(context) {
 }
 
 /**
- * QMF Synthesis Stage - Reconstructs full-spectrum audio from frequency bands
+ * Synthesize full-spectrum PCM from frequency bands.
  *
  * Performs two-stage QMF synthesis to reconstruct the full-spectrum signal
  * from three frequency bands:
@@ -346,10 +343,9 @@ export function imdctStage(context) {
  * @returns {Function} Stage function that processes inverse MDCT results
  * @throws {Error} If bufferPool is not provided in context
  */
-export function qmfSynthesisStage(context) {
+export function synthesizePcm(context) {
   const bufferPool =
-    context?.bufferPool ??
-    throwError('qmfSynthesisStage: bufferPool is required')
+    context?.bufferPool ?? throwError('synthesizePcm: bufferPool is required')
   const delays = bufferPool.qmfDelays
 
   /**
@@ -389,11 +385,22 @@ export function qmfSynthesisStage(context) {
 }
 
 /**
+ * Synthesize PCM from the dequantized ATRAC1 spectrum.
+ *
+ * @param {Object} context
+ * @param {BufferPool} context.bufferPool
+ * @returns {Function}
+ */
+export function synthesize(context) {
+  return pipe(context, synthesizeBands, synthesizePcm)
+}
+
+/**
  * Create ATRAC1 decoding pipeline
  *
- * Constructs a complete decoding pipeline that transforms ATRAC1 compressed format
- * back into PCM audio samples. The pipeline processes quantized data through
- * dequantization, inverse MDCT transform, and QMF synthesis.
+ * Constructs a decoding pipeline that transforms structured ATRAC1 syntax back
+ * into PCM audio samples. deserializeFrame() owns the preceding byte-unpacking
+ * boundary.
  *
  * The returned function can be called repeatedly to decode audio frames,
  * maintaining state through the shared buffer pool for efficient processing.
@@ -407,5 +414,5 @@ export function qmfSynthesisStage(context) {
  */
 export function decode(bufferPool = new BufferPool()) {
   const context = { bufferPool }
-  return pipe(context, dequantizationStage, imdctStage, qmfSynthesisStage)
+  return pipe(context, dequantize, synthesize)
 }

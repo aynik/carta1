@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { encode } from '../codec/pipeline/encoder'
+import { allocate, analyze, encode, quantize } from '../codec/pipeline/encoder'
+import { BufferPool } from '../codec/core/buffers'
 import { EncoderOptions } from '../codec/core/options'
+import { serializeFrame } from '../codec/io/serialization'
 import { TEST_SIGNALS } from './testSignals'
 import {
   SAMPLES_PER_FRAME,
@@ -11,6 +13,30 @@ import {
 } from '../codec/core/constants'
 
 describe('Encoder Pipeline', () => {
+  it('should expose the semantic stage boundaries', () => {
+    const options = new EncoderOptions()
+    const pcmSamples = TEST_SIGNALS.sine(440, 44100, SAMPLES_PER_FRAME)
+
+    const expected = encode(options, new BufferPool())(pcmSamples)
+
+    const context = { options, bufferPool: new BufferPool() }
+    const analyzeFrame = analyze(context)
+    const allocateFrame = allocate(context)
+    const quantizeFrame = quantize(context)
+
+    const analysis = analyzeFrame(pcmSamples)
+    expect(Object.keys(analysis)).toEqual(['coefficients', 'blockModes'])
+
+    const allocation = allocateFrame(analysis)
+    expect(allocation.bfuData).toBeDefined()
+    expect(allocation.wordLengthIndices).toBeDefined()
+    expect(allocation.quantizedCoefficients).toBeUndefined()
+
+    const result = quantizeFrame(allocation)
+    expect(result).toEqual(expected)
+    expect(serializeFrame(result)).toEqual(serializeFrame(expected))
+  })
+
   it('should perform a full pipeline execution without errors', () => {
     const encoder = encode()
     const pcmSamples = TEST_SIGNALS.sine(440, 44100, SAMPLES_PER_FRAME)

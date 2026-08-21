@@ -1,10 +1,32 @@
 import { describe, it, expect } from 'vitest'
 import { encode } from '../codec/pipeline/encoder'
-import { decode } from '../codec/pipeline/decoder'
+import { decode, dequantize, synthesize } from '../codec/pipeline/decoder'
+import { BufferPool } from '../codec/core/buffers'
+import { deserializeFrame, serializeFrame } from '../codec/io/serialization'
 import { TEST_SIGNALS } from './testSignals'
 import { SAMPLES_PER_FRAME } from '../codec/core/constants'
 
 describe('Decoder Pipeline', () => {
+  it('should expose the semantic stage and serialization boundaries', () => {
+    const pcmSamples = TEST_SIGNALS.sine(440, 44100, SAMPLES_PER_FRAME)
+    const syntax = encode()(pcmSamples)
+
+    const expected = decode(new BufferPool())(syntax)
+
+    const context = { bufferPool: new BufferPool() }
+    const dequantizeFrame = dequantize(context)
+    const synthesizeFrame = synthesize(context)
+    const result = synthesizeFrame(dequantizeFrame(syntax))
+
+    expect(result).toEqual(expected)
+
+    const bytes = serializeFrame(syntax)
+    const unpacked = deserializeFrame(bytes)
+    const decoded = decode(new BufferPool())(unpacked)
+
+    expect(decoded).toEqual(expected)
+  })
+
   it('should perform a full pipeline execution without errors', () => {
     const encoder = encode()
     const decoder = decode()

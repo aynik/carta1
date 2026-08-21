@@ -1,17 +1,15 @@
 /**
  * Carta1 Audio Codec - Encoding Pipeline
  *
- * The encoding pipeline transforms PCM audio samples into ATRAC1 compressed format
- * through a series of processing stages:
+ * The encoding pipeline transforms PCM audio samples into ATRAC1 structured
+ * syntax through three semantic stages:
  *
- * 1. QMF Analysis: Splits audio into frequency bands using quadrature mirror filters
- * 2. Block Selection: Detects transients to choose appropriate transform block sizes
- * 3. MDCT Transform: Applies Modified Discrete Cosine Transform to frequency bands
- * 4. Quantization: Performs psychoacoustic analysis, bit allocation, and quantization
+ * 1. Analysis: Builds the ATRAC1 spectrum and selects transform block modes
+ * 2. Allocation: Groups the spectrum and distributes the available frame bits
+ * 3. Quantization: Materializes the retained allocation as discrete symbols
  *
- * Each stage is implemented as a functional pipeline component that can be composed
- * using the pipe utility. The pipeline maintains state through a shared context
- * containing buffer pools and encoding options.
+ * Byte packing remains the responsibility of serializeFrame(). Analysis expands
+ * locally into QMF analysis, block selection, and spectral construction.
  */
 
 import {
@@ -22,7 +20,10 @@ import {
 } from '../utils.js'
 import { qmfAnalysis } from '../transforms/qmf.js'
 import { mdct64, mdct256, mdct512 } from '../transforms/mdct.js'
-import { groupIntoBFUs, quantize } from '../coding/quantization.js'
+import {
+  groupIntoBFUs,
+  quantize as quantizeCoefficient,
+} from '../coding/quantization.js'
 import { allocateBits } from '../coding/bitallocation.js'
 import { BufferPool } from '../core/buffers.js'
 import { EncoderOptions } from '../core/options.js'
@@ -96,7 +97,7 @@ export function qmfAnalysisStage(context) {
 }
 
 /**
- * Block Selection Stage - Detects transients to choose transform block sizes
+ * Select transform block sizes from transient analysis.
  *
  * Analyzes frequency bands using FFT and transient detection to determine
  * appropriate MDCT block sizes. Short blocks are used for transient signals
@@ -108,12 +109,11 @@ export function qmfAnalysisStage(context) {
  * @returns {Function} Stage function that processes QMF analysis results
  * @throws {Error} If bufferPool is not provided in context
  */
-export function blockSelectorStage(context) {
+export function selectBlocks(context) {
   const bufferPool =
-    context?.bufferPool ??
-    throwError('blockSelectorStage: bufferPool is required')
+    context?.bufferPool ?? throwError('selectBlocks: bufferPool is required')
   const options =
-    context?.options ?? throwError('blockSelectorStage: options is required')
+    context?.options ?? throwError('selectBlocks: options is required')
 
   /**
    * Analyze frequency bands and determine block modes
@@ -349,34 +349,27 @@ export function mdctStage(context) {
 }
 
 /**
- * Quantization Stage - Performs RDO bit allocation and quantization
+ * Allocate the frame budget across block floating units.
  *
- * The final encoding stage that:
- * 1. Groups coefficients into Block Floating Units (BFUs)
- * 2. Allocates bits using Rate-Distortion Optimization (RDO)
- * 3. Quantizes coefficients using scale factors and word lengths
- *
- * Uses RDO to optimize the allocation of bits for maximum quality
- * within the available bit budget.
- *
- * @returns {Function} Stage function that processes MDCT results
- * @throws {Error} If bufferPool is not provided in context
+ * @param {Object} context
+ * @param {EncoderOptions} context.options
+ * @returns {Function}
  */
-export function quantizationStage(context) {
+export function allocate(context) {
   const options =
-    context?.options ?? throwError('quantizationStage: options is required')
+    context?.options ?? throwError('allocate: options is required')
 
   /**
-   * Perform RDO bit allocation and quantization
-   * @param {Object} input - MDCT transform results
-   * @param {Float32Array} input.coefficients - MDCT coefficients
-   * @param {Array<number>} input.blockModes - Block modes
-   * @returns {Object} Quantization results ready for bitstream encoding
-   * @returns {number} returns.nBfu - Number of active BFUs
-   * @returns {Int32Array} returns.scaleFactorIndices - Scale factor indices for each BFU
-   * @returns {Int32Array} returns.wordLengthIndices - Word length indices for each BFU
-   * @returns {Array<Int32Array>} returns.quantizedCoefficients - Quantized coefficient data
-   * @returns {Array<number>} returns.blockModes - Block modes for each band
+   * @param {Object} input
+   * @param {Float32Array} input.coefficients
+   * @param {Array<number>} input.blockModes
+   * @returns {Object}
+   * @returns {Array<Float32Array>} returns.bfuData
+   * @returns {Array<number>} returns.bfuSizes
+   * @returns {number} returns.nBfu
+   * @returns {Int32Array} returns.scaleFactorIndices
+   * @returns {Int32Array} returns.wordLengthIndices
+   * @returns {Array<number>} returns.blockModes
    */
   return (input) => {
     const { coefficients, blockModes } = input
@@ -392,25 +385,67 @@ export function quantizationStage(context) {
       scaleFactorIndices,
     } = allocateBits(bfuData, bfuSizes, bfuCount, options.allocationBias)
 
-    const slicedWordLengthIndices = allocation.slice(0, selectedBfuCount)
-    const slicedScaleFactorIndices = scaleFactorIndices.slice(
-      0,
-      selectedBfuCount
-    )
+    const wordLengthIndices = allocation.slice(0, selectedBfuCount)
+
+    return {
+      bfuData,
+      bfuSizes,
+      nBfu: selectedBfuCount,
+      scaleFactorIndices: scaleFactorIndices.slice(0, selectedBfuCount),
+      wordLengthIndices,
+      blockModes,
+    }
+  }
+}
+
+/**
+ * Materialize the retained allocation as quantized ATRAC1 symbols.
+ *
+ * @returns {Function}
+ */
+export function quantize() {
+  /**
+   * @param {Object} input
+   * @param {Array<Float32Array>} input.bfuData
+   * @param {Array<number>} input.bfuSizes
+   * @param {number} input.nBfu
+   * @param {Int32Array} input.scaleFactorIndices
+   * @param {Int32Array} input.wordLengthIndices
+   * @param {Array<number>} input.blockModes
+   * @returns {Object}
+   * @returns {number} returns.nBfu
+   * @returns {Int32Array} returns.scaleFactorIndices
+   * @returns {Int32Array} returns.wordLengthIndices
+   * @returns {Array<Int32Array>} returns.quantizedCoefficients
+   * @returns {Array<number>} returns.blockModes
+   */
+  return (input) => {
+    const {
+      bfuData,
+      bfuSizes,
+      nBfu,
+      scaleFactorIndices,
+      wordLengthIndices,
+      blockModes,
+    } = input
     const quantizedCoefficients = []
 
-    for (let bfu = 0; bfu < selectedBfuCount; bfu++) {
+    for (let bfu = 0; bfu < nBfu; bfu++) {
       const data = bfuData[bfu].subarray(0, bfuSizes[bfu])
-      const wordLength = slicedWordLengthIndices[bfu]
+      const wordLength = wordLengthIndices[bfu]
       const bitsPerSample = WORD_LENGTH_BITS[wordLength]
-      const quantized = quantize(data, scaleFactorIndices[bfu], bitsPerSample)
+      const quantized = quantizeCoefficient(
+        data,
+        scaleFactorIndices[bfu],
+        bitsPerSample
+      )
       quantizedCoefficients.push(quantized)
     }
 
     return {
-      nBfu: selectedBfuCount,
-      scaleFactorIndices: slicedScaleFactorIndices,
-      wordLengthIndices: slicedWordLengthIndices,
+      nBfu,
+      scaleFactorIndices,
+      wordLengthIndices,
       quantizedCoefficients,
       blockModes,
     }
@@ -418,33 +453,41 @@ export function quantizationStage(context) {
 }
 
 /**
- * Create ATRAC1 encoding pipeline
+ * Analyze a PCM frame in the ATRAC1 signal domain.
  *
- * Constructs a complete encoding pipeline that transforms PCM audio samples
- * into ATRAC1 compressed format. The pipeline processes audio through QMF
- * analysis, transient detection, MDCT transform, and psychoacoustic quantization.
+ * @param {Object} context
+ * @param {BufferPool} context.bufferPool
+ * @param {EncoderOptions} context.options
+ * @returns {Function}
+ */
+export function analyze(context) {
+  const analyzeFrame = pipe(context, qmfAnalysisStage, selectBlocks, mdctStage)
+
+  /**
+   * @param {Float32Array} pcmSamples
+   * @returns {{coefficients: Float32Array, blockModes: Array<number>}}
+   */
+  return (pcmSamples) => {
+    const { coefficients, blockModes } = analyzeFrame(pcmSamples)
+    return { coefficients, blockModes }
+  }
+}
+
+/**
+ * Create an ATRAC1 encoder.
  *
- * The returned function can be called repeatedly to encode audio frames,
- * maintaining state through the shared buffer pool for efficient processing.
+ * The returned function encodes consecutive PCM frames while the supplied
+ * buffer pool retains the analysis state between calls.
  *
- * @param {EncoderOptions} [options=new EncoderOptions()] - Encoding configuration
- * @param {BufferPool} [bufferPool=new BufferPool()] - Shared buffer pool for state
- * @returns {Function} Encoding pipeline function that processes PCM samples
- *
- * @example
- * const encoder = encode(new EncoderOptions(), new BufferPool())
- * const result = encoder(pcmSamples) // Returns quantized ATRAC1 frame data
+ * @param {EncoderOptions} [options=new EncoderOptions()]
+ * @param {BufferPool} [bufferPool=new BufferPool()]
+ * @returns {Function}
  */
 export function encode(
   options = new EncoderOptions(),
   bufferPool = new BufferPool()
 ) {
   const context = { options, bufferPool }
-  return pipe(
-    context,
-    qmfAnalysisStage,
-    blockSelectorStage,
-    mdctStage,
-    quantizationStage
-  )
+
+  return pipe(context, analyze, allocate, quantize)
 }
