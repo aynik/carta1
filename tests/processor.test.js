@@ -57,6 +57,38 @@ describe('AudioProcessor', () => {
         '1 Float32 channel per frame'
       )
     })
+
+    it.each([
+      ['short mono', 1, new Float32Array(SAMPLES_PER_FRAME - 1)],
+      ['long mono', 1, new Float32Array(SAMPLES_PER_FRAME + 1)],
+      [
+        'short stereo',
+        2,
+        [
+          new Float32Array(SAMPLES_PER_FRAME - 1),
+          new Float32Array(SAMPLES_PER_FRAME),
+        ],
+      ],
+      [
+        'long stereo',
+        2,
+        [
+          new Float32Array(SAMPLES_PER_FRAME),
+          new Float32Array(SAMPLES_PER_FRAME + 1),
+        ],
+      ],
+    ])('should reject a %s frame', async (_, channelCount, frame) => {
+      async function* invalidStream() {
+        yield frame
+      }
+
+      const encoded = AudioProcessor.encodeStream(invalidStream(), {
+        channelCount,
+      })
+      await expect(AudioProcessor.collectFrames(encoded)).rejects.toThrow(
+        `exactly ${SAMPLES_PER_FRAME} samples per channel`
+      )
+    })
   })
 
   describe('decodeStream', () => {

@@ -2,7 +2,11 @@
  * Carta1 chronological stream adapters.
  */
 
-import { AEA_HEADER_SIZE, SOUND_UNIT_SIZE } from '../core/constants.js'
+import {
+  AEA_HEADER_SIZE,
+  SAMPLES_PER_FRAME,
+  SOUND_UNIT_SIZE,
+} from '../core/constants.js'
 import { EncoderOptions } from '../core/options.js'
 import { decode } from '../pipeline/decoder.js'
 import { encode } from '../pipeline/encoder.js'
@@ -28,6 +32,7 @@ function validateChannels(channelCount) {
  * @param {Float32Array|[Float32Array, Float32Array]} frame
  * @param {number} channelCount
  * @throws {TypeError} If the frame does not match the selected mode
+ * @throws {RangeError} If a selected channel is not one complete frame
  */
 function validateChunk(frame, channelCount) {
   const channels = channelCount === 1 ? [frame] : frame
@@ -40,6 +45,12 @@ function validateChunk(frame, channelCount) {
       `ATRAC1 streaming requires ${channelCount} Float32 channel${
         channelCount === 1 ? '' : 's'
       } per frame`
+    )
+  }
+
+  if (channels.some((channel) => channel.length !== SAMPLES_PER_FRAME)) {
+    throw new RangeError(
+      `ATRAC1 streaming requires exactly ${SAMPLES_PER_FRAME} samples per channel`
     )
   }
 }
