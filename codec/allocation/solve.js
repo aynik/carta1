@@ -63,87 +63,6 @@ function buildBiasedScaleFactorTable(bias) {
 }
 
 /**
- * Allocate bits by finding the optimal BFU count and distribution using RDO.
- * This function searches through the valid BFU counts to find the one that
- * minimizes the total perceptual distortion.
- *
- * @param {Array<Float32Array>} bfuData
- * @param {Int32Array} bfuSizes
- * @param {number} maxBfuCount
- * @param {number} allocationBias
- * @returns {{bfuCount:number, allocation:Int32Array, scaleFactorIndices:Int32Array}}
- */
-export function solve(bfuData, bfuSizes, maxBfuCount, allocationBias) {
-  const allScaleFactorIndices = new Int32Array(maxBfuCount)
-  const zeroBitDistortions = new Float32Array(maxBfuCount)
-  const biasedScaleFactors = buildBiasedScaleFactorTable(allocationBias)
-
-  for (let i = 0; i < maxBfuCount; i++) {
-    const sz = bfuSizes[i] | 0
-    if (sz === 0) continue
-
-    const sfi = findScaleFactor(bfuData[i], sz)
-    allScaleFactorIndices[i] = sfi
-    if (sfi > 0) {
-      const effectiveScaleFactor = biasedScaleFactors[sfi]
-      zeroBitDistortions[i] = effectiveScaleFactor * 2.0 * sz
-    }
-  }
-
-  let bestResult = null
-  let minTotalDistortion = Infinity
-
-  for (const candidateBfuCount of BFU_AMOUNTS) {
-    if (candidateBfuCount > maxBfuCount) continue
-
-    const availableBits =
-      FRAME_BITS -
-      FRAME_OVERHEAD_BITS -
-      candidateBfuCount * BITS_PER_BFU_METADATA
-
-    if (availableBits < 0) continue
-
-    const rdoResult = distributeBits(
-      candidateBfuCount,
-      bfuSizes,
-      availableBits,
-      biasedScaleFactors,
-      allScaleFactorIndices
-    )
-
-    const totalDistortion = measureDistortion(
-      candidateBfuCount,
-      maxBfuCount,
-      bfuSizes,
-      rdoResult.wordLengths,
-      rdoResult.scaleFactorIndices,
-      biasedScaleFactors,
-      zeroBitDistortions
-    )
-
-    if (totalDistortion < minTotalDistortion) {
-      minTotalDistortion = totalDistortion
-      bestResult = {
-        bfuCount: candidateBfuCount,
-        allocation: rdoResult.wordLengths,
-        scaleFactorIndices: rdoResult.scaleFactorIndices,
-      }
-    }
-  }
-
-  if (!bestResult) {
-    const fallbackBfuCount = BFU_AMOUNTS[0]
-    return {
-      bfuCount: fallbackBfuCount,
-      allocation: new Int32Array(fallbackBfuCount),
-      scaleFactorIndices: new Int32Array(NUM_BFUS),
-    }
-  }
-
-  return bestResult
-}
-
-/**
  * Calculates the total distortion for a given allocation.
  * This includes quantization distortion for coded bands and truncation
  * distortion for uncoded bands.
@@ -283,24 +202,6 @@ function distributeBits(
 }
 
 /**
- * Find the optimal scale factor index for a set of coefficients.
- * Same semantics as the original.
- * @param {Float32Array} coefficients
- * @param {number} length
- * @returns {number}
- */
-export function findScaleFactor(coefficients, length) {
-  let maxAmplitude = 0.0
-  for (let i = 0; i < length; i++) {
-    const a = Math.abs(coefficients[i])
-    if (a > maxAmplitude) maxAmplitude = a
-  }
-  if (maxAmplitude === 0) return 0
-  const index = Math.ceil(3 * (Math.log2(maxAmplitude) + 21))
-  return Math.max(0, Math.min(63, index))
-}
-
-/**
  * Restores max-heap property by sifting an element down from a given position.
  *
  * This function maintains the heap invariant where parent nodes have higher
@@ -340,4 +241,103 @@ function siftDown(heapIndices, heapPriorities, startIndex, heapSize) {
 
   heapIndices[i] = idxVal
   heapPriorities[i] = prVal
+}
+
+/**
+ * Allocate bits by finding the optimal BFU count and distribution using RDO.
+ * This function searches through the valid BFU counts to find the one that
+ * minimizes the total perceptual distortion.
+ *
+ * @param {Array<Float32Array>} bfuData
+ * @param {Int32Array} bfuSizes
+ * @param {number} maxBfuCount
+ * @param {number} allocationBias
+ * @returns {{bfuCount:number, allocation:Int32Array, scaleFactorIndices:Int32Array}}
+ */
+export function solve(bfuData, bfuSizes, maxBfuCount, allocationBias) {
+  const allScaleFactorIndices = new Int32Array(maxBfuCount)
+  const zeroBitDistortions = new Float32Array(maxBfuCount)
+  const biasedScaleFactors = buildBiasedScaleFactorTable(allocationBias)
+
+  for (let i = 0; i < maxBfuCount; i++) {
+    const sz = bfuSizes[i] | 0
+    if (sz === 0) continue
+
+    const sfi = findScaleFactor(bfuData[i], sz)
+    allScaleFactorIndices[i] = sfi
+    if (sfi > 0) {
+      const effectiveScaleFactor = biasedScaleFactors[sfi]
+      zeroBitDistortions[i] = effectiveScaleFactor * 2.0 * sz
+    }
+  }
+
+  let bestResult = null
+  let minTotalDistortion = Infinity
+
+  for (const candidateBfuCount of BFU_AMOUNTS) {
+    if (candidateBfuCount > maxBfuCount) continue
+
+    const availableBits =
+      FRAME_BITS -
+      FRAME_OVERHEAD_BITS -
+      candidateBfuCount * BITS_PER_BFU_METADATA
+
+    if (availableBits < 0) continue
+
+    const rdoResult = distributeBits(
+      candidateBfuCount,
+      bfuSizes,
+      availableBits,
+      biasedScaleFactors,
+      allScaleFactorIndices
+    )
+
+    const totalDistortion = measureDistortion(
+      candidateBfuCount,
+      maxBfuCount,
+      bfuSizes,
+      rdoResult.wordLengths,
+      rdoResult.scaleFactorIndices,
+      biasedScaleFactors,
+      zeroBitDistortions
+    )
+
+    if (totalDistortion < minTotalDistortion) {
+      minTotalDistortion = totalDistortion
+      bestResult = {
+        bfuCount: candidateBfuCount,
+        allocation: rdoResult.wordLengths,
+        scaleFactorIndices: rdoResult.scaleFactorIndices,
+      }
+    }
+  }
+
+  if (!bestResult) {
+    const fallbackBfuCount = BFU_AMOUNTS[0]
+    return {
+      bfuCount: fallbackBfuCount,
+      allocation: new Int32Array(fallbackBfuCount),
+      scaleFactorIndices: new Int32Array(NUM_BFUS),
+    }
+  }
+
+  return bestResult
+}
+
+/**
+ * Find the optimal scale factor index for a set of coefficients.
+ * Same semantics as the original.
+ * @param {Float32Array} coefficients
+ * @param {number} length
+ * @returns {number}
+ */
+export function findScaleFactor(coefficients, length) {
+  let maxAmplitude = 0.0
+  for (let i = 0; i < length; i++) {
+    const a = Math.abs(coefficients[i])
+    if (a > maxAmplitude) maxAmplitude = a
+  }
+  if (maxAmplitude === 0) return 0
+  const index = Math.ceil(3 * (Math.log2(maxAmplitude) + 21))
+  return Math.max(0, Math.min(63, index))
 }

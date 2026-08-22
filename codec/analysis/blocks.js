@@ -11,52 +11,6 @@ import { FFT } from '../signal/fft.js'
 import { throwError } from '../utils.js'
 
 /**
- * Perform FFT on time-domain samples and return magnitude spectrum
- * @param {Float32Array} samples - Time-domain samples
- * @param {number} fftSize - FFT size (must be power of 2)
- * @returns {Float32Array} Magnitude spectrum (positive frequencies only)
- */
-export function performFFT(samples, fftSize) {
-  const real = new Float32Array(fftSize)
-  const imag = new Float32Array(fftSize)
-
-  // Copy samples with zero-padding if necessary
-  const copyLen = Math.min(samples.length, fftSize)
-  real.set(samples.subarray(0, copyLen))
-
-  // Perform FFT
-  FFT.fft(real, imag)
-
-  // Calculate magnitude spectrum for positive frequencies
-  const magnitude = new Float32Array(fftSize / 2)
-  for (let i = 0; i < fftSize / 2; i++) {
-    magnitude[i] = Math.sqrt(real[i] * real[i] + imag[i] * imag[i])
-  }
-
-  return magnitude
-}
-
-/**
- * Detect transients by analyzing spectral changes between frames
- * @param {Float32Array} currentCoeffs - Current frame coefficients
- * @param {Float32Array} prevCoeffs - Previous frame coefficients
- * @param {number} threshold - Detection threshold
- * @returns {boolean} True if transient detected
- */
-export function detectTransient(currentCoeffs, prevCoeffs, threshold) {
-  // Can't detect transients without previous frame
-  if (!prevCoeffs) return false
-
-  // Calculate all spectral features
-  const features = calculateSpectralFeatures(currentCoeffs, prevCoeffs)
-
-  // Combine features using perceptually-motivated weighting
-  const transientScore = calculateTransientScore(features)
-
-  return transientScore > threshold
-}
-
-/**
  * Calculate all spectral features for transient detection
  * @param {Float32Array} currentCoeffs - Current frame coefficients
  * @param {Float32Array} prevCoeffs - Previous frame coefficients
@@ -225,6 +179,52 @@ function calculateTransientScore(features) {
       energyContribution) /
     4
   )
+}
+
+/**
+ * Perform FFT on time-domain samples and return magnitude spectrum
+ * @param {Float32Array} samples - Time-domain samples
+ * @param {number} fftSize - FFT size (must be power of 2)
+ * @returns {Float32Array} Magnitude spectrum (positive frequencies only)
+ */
+export function performFFT(samples, fftSize) {
+  const real = new Float32Array(fftSize)
+  const imag = new Float32Array(fftSize)
+
+  // Copy samples with zero-padding if necessary
+  const copyLen = Math.min(samples.length, fftSize)
+  real.set(samples.subarray(0, copyLen))
+
+  // Perform FFT
+  FFT.fft(real, imag)
+
+  // Calculate magnitude spectrum for positive frequencies
+  const magnitude = new Float32Array(fftSize / 2)
+  for (let i = 0; i < fftSize / 2; i++) {
+    magnitude[i] = Math.sqrt(real[i] * real[i] + imag[i] * imag[i])
+  }
+
+  return magnitude
+}
+
+/**
+ * Detect transients by analyzing spectral changes between frames
+ * @param {Float32Array} currentCoeffs - Current frame coefficients
+ * @param {Float32Array} prevCoeffs - Previous frame coefficients
+ * @param {number} threshold - Detection threshold
+ * @returns {boolean} True if transient detected
+ */
+export function detectTransient(currentCoeffs, prevCoeffs, threshold) {
+  // Can't detect transients without previous frame
+  if (!prevCoeffs) return false
+
+  // Calculate all spectral features
+  const features = calculateSpectralFeatures(currentCoeffs, prevCoeffs)
+
+  // Combine features using perceptually-motivated weighting
+  const transientScore = calculateTransientScore(features)
+
+  return transientScore > threshold
 }
 
 /**
