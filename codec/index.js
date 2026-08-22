@@ -9,7 +9,7 @@ import {
   deserializeFrame,
   AeaFile,
 } from './io/serialization.js'
-import { quantize, dequantize } from './coding/quantization.js'
+import { quantize, dequantize } from './quantization/spectrum.js'
 import { analyzeBands as qmfAnalysisStage } from './analysis/bands.js'
 import { transformSpectrum as mdctStage } from './analysis/spectrum.js'
 import { pipe } from './utils.js'

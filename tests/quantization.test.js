@@ -1,11 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import {
-  quantize,
-  dequantize,
-  groupIntoBFUs,
-} from '../codec/coding/quantization'
+import { groupIntoBFUs } from '../codec/allocation/source'
 import { SCALE_FACTORS } from '../codec/core/constants'
 import { findScaleFactor } from '../codec/allocation/solve'
+import { dequantize, quantize } from '../codec/quantization/spectrum'
 
 describe('Quantization', () => {
   describe('quantize and dequantize', () => {

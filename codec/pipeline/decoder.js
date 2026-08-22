@@ -18,7 +18,7 @@ import {
 } from '../utils.js'
 import { qmfSynthesis } from '../transforms/qmf.js'
 import { imdct64, imdct256, imdct512, overlapAdd } from '../transforms/mdct.js'
-import { dequantize as dequantizeCoefficient } from '../coding/quantization.js'
+import { dequantize as dequantizeCoefficient } from '../quantization/spectrum.js'
 import { BufferPool } from '../core/buffers.js'
 import {
   BFU_BAND_BOUNDARIES,
