@@ -18,81 +18,15 @@ import {
 } from '../utils.js'
 import { qmfSynthesis } from '../transforms/qmf.js'
 import { imdct64, imdct256, imdct512, overlapAdd } from '../transforms/mdct.js'
-import { dequantize as dequantizeCoefficient } from '../quantization/spectrum.js'
 import { BufferPool } from '../core/buffers.js'
+import { dequantize } from '../dequantization.js'
 import {
-  BFU_BAND_BOUNDARIES,
-  BFU_START_LONG,
-  BFU_START_SHORT,
-  WORD_LENGTH_BITS,
   WINDOW_SHORT,
   MDCT_SIZE_LONG,
   MDCT_BAND_CONFIGS,
   MDCT_SHORT_BLOCK_SIZE,
   MDCT_TAIL_WINDOW_SIZE,
 } from '../core/constants.js'
-
-/**
- * Reconstruct MDCT coefficients from quantized data.
- *
- * Reverses the quantization process by:
- * - Reconstructing coefficient values using scale factors and word lengths
- * - Organizing coefficients back into Block Floating Units (BFUs)
- * - Preparing coefficient array for inverse MDCT transform
- *
- * Uses the same BFU organization as the encoder but reconstructs the original
- * coefficient values from the quantized representation.
- *
- * @returns {Function} Stage function that processes quantized frame data
- * @throws {Error} If bufferPool is not provided in context
- */
-export function dequantize() {
-  /**
-   * Reconstruct MDCT coefficients from quantized data
-   * @param {Object} frameData - Quantized frame data
-   * @param {number} frameData.nBfu - Number of active BFUs
-   * @param {Int32Array} frameData.scaleFactorIndices - Scale factor indices for each BFU
-   * @param {Int32Array} frameData.wordLengthIndices - Word length indices for each BFU
-   * @param {Array<Int32Array>} frameData.quantizedCoefficients - Quantized coefficient data
-   * @param {Array<number>} frameData.blockModes - Block modes for each band
-   * @returns {Object} Dequantization results
-   * @returns {Float32Array} returns.coefficients - Reconstructed MDCT coefficients (512 samples)
-   * @returns {Array<number>} returns.blockModes - Block modes for each band
-   */
-  return (frameData) => {
-    const coefficients = new Float32Array(512)
-    const {
-      nBfu,
-      scaleFactorIndices,
-      wordLengthIndices,
-      quantizedCoefficients,
-      blockModes,
-    } = frameData
-
-    for (let bfu = 0; bfu < nBfu; bfu++) {
-      const bitsPerSample = WORD_LENGTH_BITS[wordLengthIndices[bfu]]
-
-      let band = 0
-      if (bfu >= BFU_BAND_BOUNDARIES[0]) band = 1
-      if (bfu >= BFU_BAND_BOUNDARIES[1]) band = 2
-
-      const isLongBlock = blockModes[band] === 0
-      const position = isLongBlock ? BFU_START_LONG[bfu] : BFU_START_SHORT[bfu]
-
-      if (bitsPerSample > 0) {
-        const quantized = quantizedCoefficients[bfu]
-        const dequantized = dequantizeCoefficient(
-          quantized,
-          scaleFactorIndices[bfu],
-          bitsPerSample
-        )
-        coefficients.set(dequantized, position)
-      }
-    }
-
-    return { coefficients, blockModes }
-  }
-}
 
 /**
  * Synthesize time-domain bands from frequency coefficients.

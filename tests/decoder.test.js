@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { encode } from '../codec/pipeline/encoder'
-import { decode, dequantize, synthesize } from '../codec/pipeline/decoder'
+import { dequantize } from '../codec/dequantization'
+import { decode, synthesize } from '../codec/pipeline/decoder'
 import { BufferPool } from '../codec/core/buffers'
 import { deserializeFrame, serializeFrame } from '../codec/io/serialization'
 import { TEST_SIGNALS } from './testSignals'
