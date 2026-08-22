@@ -4,11 +4,8 @@
 
 import { encode } from './pipeline/encoder.js'
 import { decode } from './pipeline/decoder.js'
-import {
-  serializeFrame,
-  deserializeFrame,
-  AeaFile,
-} from './io/serialization.js'
+import { AeaFile } from './boundary/container.js'
+import { deserializeFrame, serializeFrame } from './syntax/frame.js'
 import { quantize, dequantize } from './quantization/spectrum.js'
 import { analyzeBands as qmfAnalysisStage } from './analysis/bands.js'
 import { transformSpectrum as mdctStage } from './analysis/spectrum.js'

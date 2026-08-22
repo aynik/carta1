@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { AeaReader } from '../codec/io/readers'
 import fs from 'fs'
 import path from 'path'
-import { AeaFile, serializeFrame } from '../codec/io/serialization.js'
+import { AeaFile } from '../codec/boundary/container.js'
+import { serializeFrame } from '../codec/syntax/frame.js'
 
 describe('AeaReader', () => {
   const testFilePath = path.join(__dirname, 'test.aea')

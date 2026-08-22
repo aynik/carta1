@@ -1,9 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import {
-  serializeFrame,
-  deserializeFrame,
-  AeaFile,
-} from '../codec/io/serialization'
+import { AeaFile } from '../codec/boundary/container'
+import { deserializeFrame, serializeFrame } from '../codec/syntax/frame'
 import {
   SOUND_UNIT_SIZE,
   AEA_MAGIC,

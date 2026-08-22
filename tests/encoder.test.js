@@ -5,7 +5,7 @@ import { encode } from '../codec/pipeline/encoder'
 import { quantize } from '../codec/quantization/stage'
 import { BufferPool } from '../codec/state'
 import { EncoderOptions } from '../codec/core/options'
-import { serializeFrame } from '../codec/io/serialization'
+import { serializeFrame } from '../codec/syntax/frame'
 import { TEST_SIGNALS } from './testSignals'
 import {
   SAMPLES_PER_FRAME,

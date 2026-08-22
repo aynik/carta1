@@ -21,7 +21,8 @@ import wav from 'wav'
 
 import { AudioProcessor } from '../codec/io/processor.js'
 import { AeaReader } from '../codec/io/readers.js'
-import { deserializeFrame, AeaFile } from '../codec/io/serialization.js'
+import { AeaFile } from '../codec/boundary/container.js'
+import { deserializeFrame } from '../codec/syntax/frame.js'
 import { EncoderOptions } from '../codec/core/options.js'
 import {
   SAMPLE_RATE,

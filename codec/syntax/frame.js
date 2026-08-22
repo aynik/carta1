@@ -1,7 +1,7 @@
 /**
- * Carta1 Audio Codec - Serialization Module
+ * Carta1 structured-frame syntax.
  *
- * Handles serialization and deserialization of ATRAC1 audio frames and AEA file format.
+ * Handles serialization and deserialization of ATRAC1 audio frames.
  * Provides functions for packing encoded frame data into binary format and unpacking
  * it back into structured data for processing.
  *
@@ -15,12 +15,6 @@ import {
   SOUND_UNIT_SIZE,
   BFU_AMOUNTS,
   SPECS_PER_BFU,
-  AEA_HEADER_SIZE,
-  AEA_MAGIC,
-  AEA_TITLE_OFFSET,
-  AEA_TITLE_SIZE,
-  AEA_FRAME_COUNT_OFFSET,
-  AEA_CHANNEL_COUNT_OFFSET,
   WORD_LENGTH_BITS,
   FRAME_HEADER_BITS,
   FRAME_WORD_LENGTH_BITS,
@@ -172,83 +166,5 @@ export function deserializeFrame(buffer) {
     wordLengthIndices,
     quantizedCoefficients,
     blockModes,
-  }
-}
-
-/**
- * AEA file format handler for ATRAC1 audio files
- * Manages creation and parsing of AEA file headers
- */
-export class AeaFile {
-  /**
-   * Creates an AEA file header with the specified metadata
-   * @param {string} [title=''] - Audio file title (max 255 characters)
-   * @param {number} [frameCount=0] - Number of audio frames in the file
-   * @param {number} [channelCount=1] - Number of audio channels (1 or 2)
-   * @returns {Uint8Array} AEA file header buffer
-   */
-  static createHeader(title = '', frameCount = 0, channelCount = 1) {
-    const header = new Uint8Array(AEA_HEADER_SIZE)
-    const view = new DataView(header.buffer)
-
-    // Magic number
-    header.set(AEA_MAGIC, 0)
-
-    // Title (null-terminated string)
-    const titleBytes = new TextEncoder().encode(title)
-    header.set(
-      titleBytes.subarray(0, Math.min(titleBytes.length, AEA_TITLE_SIZE - 1)),
-      AEA_TITLE_OFFSET
-    )
-
-    // Frame count
-    view.setUint32(AEA_FRAME_COUNT_OFFSET, frameCount, true)
-
-    // Channel count
-    header[AEA_CHANNEL_COUNT_OFFSET] = channelCount
-
-    return header
-  }
-
-  /**
-   * Parses an AEA file header to extract metadata
-   * @param {Uint8Array} header - AEA file header buffer
-   * @returns {Object} Parsed header information
-   * @returns {string} returns.title - Audio file title
-   * @returns {number} returns.frameCount - Number of audio frames
-   * @returns {number} returns.channelCount - Number of audio channels
-   * @throws {Error} If header size is invalid or magic number doesn't match
-   */
-  static parseHeader(header) {
-    if (header.length !== AEA_HEADER_SIZE) {
-      throw new Error(`Header must be ${AEA_HEADER_SIZE} bytes`)
-    }
-
-    // Check magic number
-    for (let i = 0; i < AEA_MAGIC.length; i++) {
-      if (header[i] !== AEA_MAGIC[i]) {
-        throw new Error('Invalid AEA file')
-      }
-    }
-
-    const view = new DataView(
-      header.buffer,
-      header.byteOffset,
-      header.byteLength
-    )
-
-    // Extract title
-    const titleEnd = header.indexOf(0, AEA_TITLE_OFFSET)
-    const titleLength =
-      titleEnd === -1 ? AEA_TITLE_SIZE : titleEnd - AEA_TITLE_OFFSET
-    const title = new TextDecoder().decode(
-      header.subarray(AEA_TITLE_OFFSET, AEA_TITLE_OFFSET + titleLength)
-    )
-
-    // Extract metadata
-    const frameCount = view.getUint32(AEA_FRAME_COUNT_OFFSET, true)
-    const channelCount = header[AEA_CHANNEL_COUNT_OFFSET]
-
-    return { title, frameCount, channelCount }
   }
 }

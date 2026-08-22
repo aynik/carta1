@@ -29,7 +29,8 @@ import {
   WAV_PCM_MAX_NEGATIVE,
   WAV_DATA_OFFSET,
 } from '../core/constants.js'
-import { serializeFrame, deserializeFrame, AeaFile } from './serialization.js'
+import { AeaFile } from '../boundary/container.js'
+import { deserializeFrame, serializeFrame } from '../syntax/frame.js'
 
 /**
  * Audio processing utility class providing high-level encoding and decoding operations

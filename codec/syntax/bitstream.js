@@ -1,5 +1,5 @@
 /**
- * Carta1 Audio Codec - Bitstream Operations
+ * Carta1 bitstream syntax operators.
  *
  * This module provides low-level bitstream packing and unpacking operations
  * for reading and writing ATRAC1 frame data with bit-level precision.

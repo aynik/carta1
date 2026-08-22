@@ -4,7 +4,7 @@ import { dequantize } from '../codec/dequantization'
 import { decode } from '../codec/pipeline/decoder'
 import { synthesize } from '../codec/synthesis/stage'
 import { BufferPool } from '../codec/state'
-import { deserializeFrame, serializeFrame } from '../codec/io/serialization'
+import { deserializeFrame, serializeFrame } from '../codec/syntax/frame'
 import { TEST_SIGNALS } from './testSignals'
 import { SAMPLES_PER_FRAME } from '../codec/core/constants'
 

@@ -9,7 +9,7 @@
  *   new Worker('carta1-worker.min.js')
  */
 
-import { AeaFile } from '../io/serialization.js'
+import { AeaFile } from '../boundary/container.js'
 import { EncoderOptions } from '../core/options.js'
 import { AudioProcessor } from '../io/processor.js'
 import { SAMPLE_RATE } from '../core/constants.js'
