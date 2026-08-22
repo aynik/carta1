@@ -6,6 +6,7 @@ import { quantize } from '../codec/quantization/stage'
 import { BufferPool } from '../codec/state'
 import { EncoderOptions } from '../codec/core/options'
 import { serializeFrame } from '../codec/syntax/frame'
+import { mdctStage } from '../codec/index'
 import { TEST_SIGNALS } from './testSignals'
 import {
   SAMPLES_PER_FRAME,
@@ -16,6 +17,23 @@ import {
 import { WORD_LENGTH_BITS } from '../codec/core/tables'
 
 describe('Encoder Pipeline', () => {
+  it('should preserve the public MDCT stage contract', () => {
+    const originalFrame = new Float32Array(SAMPLES_PER_FRAME)
+    const transformFrame = mdctStage({ bufferPool: new BufferPool() })
+
+    const result = transformFrame({
+      bands: [
+        new Float32Array(128),
+        new Float32Array(128),
+        new Float32Array(256),
+      ],
+      blockModes: [0, 0, 0],
+      originalFrame,
+    })
+
+    expect(result.originalFrame).toBe(originalFrame)
+  })
+
   it('should expose the semantic stage boundaries', () => {
     const options = new EncoderOptions()
     const pcmSamples = TEST_SIGNALS.sine(440, 44100, SAMPLES_PER_FRAME)

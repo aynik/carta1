@@ -139,11 +139,11 @@ export function transformSpectrum(context) {
   }
 
   /**
-   * @param {{bands: Array<Float32Array>, blockModes: Array<number>}} input
-   * @returns {{bands: Array<Float32Array>, coefficients: Float32Array, blockModes: Array<number>}}
+   * @param {{bands: Array<Float32Array>, blockModes: Array<number>, originalFrame: Float32Array}} input
+   * @returns {{bands: Array<Float32Array>, coefficients: Float32Array, blockModes: Array<number>, originalFrame: Float32Array}}
    */
   return (input) => {
-    const { bands, blockModes } = input
+    const { bands, blockModes, originalFrame } = input
     const coefficients = new Float32Array(512)
 
     bands.forEach((bandSamples, bandIndex) => {
@@ -156,6 +156,6 @@ export function transformSpectrum(context) {
       coefficients.set(transformed, calculateBandOffset(bandIndex))
     })
 
-    return { bands, coefficients, blockModes }
+    return { bands, coefficients, blockModes, originalFrame }
   }
 }
