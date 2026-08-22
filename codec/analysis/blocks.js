@@ -6,7 +6,9 @@
  * characteristics that require special handling during encoding.
  */
 
+import { FFT_SIZE_HIGH, FFT_SIZE_LOW, FFT_SIZE_MID } from '../core/constants.js'
 import { FFT } from '../transforms/fft.js'
+import { throwError } from '../utils.js'
 
 /**
  * Perform FFT on time-domain samples and return magnitude spectrum
@@ -223,4 +225,47 @@ function calculateTransientScore(features) {
       energyContribution) /
     4
   )
+}
+
+/**
+ * Select transform block sizes from transient analysis.
+ *
+ * @param {Object} context
+ * @param {import('../core/buffers.js').BufferPool} context.bufferPool
+ * @param {import('../core/options.js').EncoderOptions} context.options
+ * @returns {Function}
+ * @throws {Error} If the required context is missing
+ */
+export function selectBlocks(context) {
+  const bufferPool =
+    context?.bufferPool ?? throwError('selectBlocks: bufferPool is required')
+  const options =
+    context?.options ?? throwError('selectBlocks: options is required')
+  const fftSizes = [FFT_SIZE_LOW, FFT_SIZE_MID, FFT_SIZE_HIGH]
+
+  /**
+   * @param {{bands: Array<Float32Array>}} input
+   * @returns {{bands: Array<Float32Array>, blockModes: Array<number>}}
+   */
+  return (input) => {
+    const { bands } = input
+    let blockModes
+
+    if (options.fixedBlockModes) {
+      blockModes = options.fixedBlockModes
+    } else {
+      blockModes = bands.map((bandSamples, bandIndex) => {
+        const coeffs = performFFT(bandSamples, fftSizes[bandIndex])
+        const transient = detectTransient(
+          coeffs,
+          bufferPool.transientDetection[bandIndex],
+          options.transientThresholdLow
+        )
+        bufferPool.transientDetection[bandIndex] = coeffs
+        return transient * Math.max(bandIndex + 1, 2)
+      })
+    }
+
+    return { bands, blockModes }
+  }
 }

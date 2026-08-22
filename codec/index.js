@@ -10,7 +10,8 @@ import {
   AeaFile,
 } from './io/serialization.js'
 import { quantize, dequantize } from './coding/quantization.js'
-import { qmfAnalysisStage, mdctStage } from './pipeline/encoder.js'
+import { analyzeBands as qmfAnalysisStage } from './analysis/bands.js'
+import { transformSpectrum as mdctStage } from './analysis/spectrum.js'
 import { pipe } from './utils.js'
 import { BufferPool } from './core/buffers.js'
 import { EncoderOptions } from './core/options.js'

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { performFFT, detectTransient } from '../codec/analysis/transient'
+import { performFFT, detectTransient } from '../codec/analysis/blocks'
 import { TEST_SIGNALS } from './testSignals'
 import { SAMPLES_PER_FRAME } from '../codec/core/constants'
 
