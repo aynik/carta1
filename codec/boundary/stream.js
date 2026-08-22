@@ -23,6 +23,28 @@ function validateChannels(channelCount) {
 }
 
 /**
+ * Validate one PCM frame in the selected channel mode.
+ *
+ * @param {Float32Array|[Float32Array, Float32Array]} frame
+ * @param {number} channelCount
+ * @throws {TypeError} If the frame does not match the selected mode
+ */
+function validateChunk(frame, channelCount) {
+  const channels = channelCount === 1 ? [frame] : frame
+  if (
+    !Array.isArray(channels) ||
+    channels.length !== channelCount ||
+    channels.some((channel) => !(channel instanceof Float32Array))
+  ) {
+    throw new TypeError(
+      `ATRAC1 streaming requires ${channelCount} Float32 channel${
+        channelCount === 1 ? '' : 's'
+      } per frame`
+    )
+  }
+}
+
+/**
  * Create an empty structured frame for an unmatched stereo channel.
  *
  * @returns {Object}
@@ -79,6 +101,7 @@ export class AeaStreamingEncoder {
    */
   async *frames(frames) {
     for await (const frame of frames) {
+      validateChunk(frame, this.channelCount)
       if (this.channelCount === 1) {
         yield this.leftEncoder(frame)
       } else {

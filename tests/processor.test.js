@@ -44,6 +44,19 @@ describe('AudioProcessor', () => {
       }
       expect(frames.length).toBe(4)
     })
+
+    it('should reject frames outside the selected channel mode', async () => {
+      async function* invalidStream() {
+        yield []
+      }
+
+      const encoded = AudioProcessor.encodeStream(invalidStream(), {
+        channelCount: 1,
+      })
+      await expect(AudioProcessor.collectFrames(encoded)).rejects.toThrow(
+        '1 Float32 channel per frame'
+      )
+    })
   })
 
   describe('decodeStream', () => {
