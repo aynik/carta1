@@ -7,7 +7,7 @@ import {
   BFU_START_LONG,
   BFU_START_SHORT,
   SPECS_PER_BFU,
-} from '../core/constants.js'
+} from '../core/tables.js'
 
 /**
  * Group spectral coefficients into block floating units.

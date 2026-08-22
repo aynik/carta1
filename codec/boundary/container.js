@@ -6,10 +6,10 @@ import {
   AEA_CHANNEL_COUNT_OFFSET,
   AEA_FRAME_COUNT_OFFSET,
   AEA_HEADER_SIZE,
-  AEA_MAGIC,
   AEA_TITLE_OFFSET,
   AEA_TITLE_SIZE,
 } from '../core/constants.js'
+import { AEA_MAGIC } from '../core/tables.js'
 
 /**
  * AEA file-format handler.

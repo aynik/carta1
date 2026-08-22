@@ -4,9 +4,8 @@ import {
   FRAME_BITS,
   FRAME_OVERHEAD_BITS,
   BITS_PER_BFU_METADATA,
-  WORD_LENGTH_BITS,
-  SCALE_FACTORS,
 } from '../codec/core/constants'
+import { WORD_LENGTH_BITS, SCALE_FACTORS } from '../codec/core/tables'
 
 describe('RDO Bit Allocation', () => {
   const createMockBfuData = (sizes, value = 1) =>

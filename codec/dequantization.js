@@ -7,7 +7,7 @@ import {
   BFU_START_LONG,
   BFU_START_SHORT,
   WORD_LENGTH_BITS,
-} from './core/constants.js'
+} from './core/tables.js'
 import { dequantize as dequantizeCoefficient } from './quantization/spectrum.js'
 
 /**

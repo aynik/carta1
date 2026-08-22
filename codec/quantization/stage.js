@@ -2,7 +2,7 @@
  * Carta1 quantization stage.
  */
 
-import { WORD_LENGTH_BITS } from '../core/constants.js'
+import { WORD_LENGTH_BITS } from '../core/tables.js'
 import { quantize as quantizeCoefficient } from './spectrum.js'
 
 /**

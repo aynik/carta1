@@ -3,15 +3,14 @@
  */
 
 import {
-  MDCT_BAND_CONFIGS,
   MDCT_OVERLAP_SIZE,
   MDCT_SHORT_BLOCK_SIZE,
   MDCT_SIZE_LONG,
   MDCT_SIZE_MID,
   MDCT_SIZE_SHORT,
-  WINDOW_SHORT,
 } from '../core/constants.js'
 import { calculateBandOffset } from '../core/geometry.js'
+import { MDCT_BAND_CONFIGS, WINDOW_SHORT } from '../core/tables.js'
 import {
   mdct64,
   mdct256,

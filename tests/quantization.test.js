@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { groupIntoBFUs } from '../codec/allocation/source'
-import { SCALE_FACTORS } from '../codec/core/constants'
+import { SCALE_FACTORS } from '../codec/core/tables'
 import { findScaleFactor } from '../codec/allocation/solve'
 import { dequantize, quantize } from '../codec/quantization/spectrum'
 

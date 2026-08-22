@@ -13,13 +13,11 @@
 
 import {
   SOUND_UNIT_SIZE,
-  BFU_AMOUNTS,
-  SPECS_PER_BFU,
-  WORD_LENGTH_BITS,
   FRAME_HEADER_BITS,
   FRAME_WORD_LENGTH_BITS,
   FRAME_SCALE_FACTOR_BITS,
 } from '../core/constants.js'
+import { BFU_AMOUNTS, SPECS_PER_BFU, WORD_LENGTH_BITS } from '../core/tables.js'
 import { packBits, unpackBits, unpackSignedBits } from './bitstream.js'
 
 /**

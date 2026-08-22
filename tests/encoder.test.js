@@ -12,8 +12,8 @@ import {
   FRAME_BITS,
   FRAME_OVERHEAD_BITS,
   BITS_PER_BFU_METADATA,
-  WORD_LENGTH_BITS,
 } from '../codec/core/constants'
+import { WORD_LENGTH_BITS } from '../codec/core/tables'
 
 describe('Encoder Pipeline', () => {
   it('should expose the semantic stage boundaries', () => {

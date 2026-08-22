@@ -6,7 +6,8 @@
  * bands for independent processing and coding.
  */
 
-import { QMF_DELAY, QMF_EVEN, QMF_ODD } from '../core/constants.js'
+import { QMF_DELAY } from '../core/constants.js'
+import { QMF_EVEN, QMF_ODD } from '../core/tables.js'
 import { throwError } from '../utils.js'
 
 /**

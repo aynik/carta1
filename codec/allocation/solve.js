@@ -27,13 +27,15 @@ import {
   FRAME_OVERHEAD_BITS,
   BITS_PER_BFU_METADATA,
   MAX_WORD_LENGTH_INDEX,
+} from '../core/constants.js'
+import {
   WORD_LENGTH_BITS,
   INV_POWER_OF_TWO,
   SCALE_FACTORS,
   BFU_AMOUNTS,
   WORD_LENGTH_DELTA_BITS,
   DISTORTION_DELTA_FACTORS,
-} from '../core/constants.js'
+} from '../core/tables.js'
 
 const biasedScaleFactorCache = new Map()
 

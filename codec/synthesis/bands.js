@@ -3,13 +3,12 @@
  */
 
 import {
-  MDCT_BAND_CONFIGS,
   MDCT_SHORT_BLOCK_SIZE,
   MDCT_SIZE_LONG,
   MDCT_TAIL_WINDOW_SIZE,
-  WINDOW_SHORT,
 } from '../core/constants.js'
 import { extractBandCoefficients } from '../core/geometry.js'
+import { MDCT_BAND_CONFIGS, WINDOW_SHORT } from '../core/tables.js'
 import {
   imdct64,
   imdct256,

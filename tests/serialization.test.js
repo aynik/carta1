@@ -1,11 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { AeaFile } from '../codec/boundary/container'
 import { deserializeFrame, serializeFrame } from '../codec/syntax/frame'
-import {
-  SOUND_UNIT_SIZE,
-  AEA_MAGIC,
-  AEA_HEADER_SIZE,
-} from '../codec/core/constants'
+import { SOUND_UNIT_SIZE, AEA_HEADER_SIZE } from '../codec/core/constants'
+import { AEA_MAGIC } from '../codec/core/tables'
 
 describe('Serialization', () => {
   const createMockFrameData = () => ({

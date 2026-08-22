@@ -10,10 +10,8 @@
  * and non-uniform quantization schemes based on perceptual importance.
  */
 
-import {
-  QUANTIZATION_SIGN_BIT_SHIFT,
-  SCALE_FACTORS,
-} from '../core/constants.js'
+import { QUANTIZATION_SIGN_BIT_SHIFT } from '../core/constants.js'
+import { SCALE_FACTORS } from '../core/tables.js'
 
 /**
  * Quantize coefficients.

@@ -20,7 +20,7 @@ import {
   SPECS_PER_BFU,
   SCALE_FACTORS,
   BFU_START_LONG,
-} from './core/constants.js'
+} from './core/tables.js'
 
 export {
   pipe,
