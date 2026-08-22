@@ -63,6 +63,46 @@ function buildBiasedScaleFactorTable(bias) {
 }
 
 /**
+ * Evaluate one legal active-BFU count.
+ *
+ * @param {number} activeBfuCount
+ * @param {number} maxBfuCount
+ * @param {Int32Array} bfuSizes
+ * @param {number} remainingBits
+ * @param {Float64Array} biasedScaleFactors
+ * @param {Int32Array} allScaleFactorIndices
+ * @param {Float32Array} zeroBitDistortions
+ * @returns {{distortion: number, wordLengths: Int32Array, scaleFactorIndices: Int32Array}}
+ */
+function search(
+  activeBfuCount,
+  maxBfuCount,
+  bfuSizes,
+  remainingBits,
+  biasedScaleFactors,
+  allScaleFactorIndices,
+  zeroBitDistortions
+) {
+  const allocation = distributeBits(
+    activeBfuCount,
+    bfuSizes,
+    remainingBits,
+    biasedScaleFactors,
+    allScaleFactorIndices
+  )
+  const distortion = measureDistortion(
+    activeBfuCount,
+    maxBfuCount,
+    bfuSizes,
+    allocation.wordLengths,
+    allocation.scaleFactorIndices,
+    biasedScaleFactors,
+    zeroBitDistortions
+  )
+  return { distortion, ...allocation }
+}
+
+/**
  * Calculates the total distortion for a given allocation.
  * This includes quantization distortion for coded bands and truncation
  * distortion for uncoded bands.
@@ -284,30 +324,22 @@ export function solve(bfuData, bfuSizes, maxBfuCount, allocationBias) {
 
     if (availableBits < 0) continue
 
-    const rdoResult = distributeBits(
-      candidateBfuCount,
-      bfuSizes,
-      availableBits,
-      biasedScaleFactors,
-      allScaleFactorIndices
-    )
-
-    const totalDistortion = measureDistortion(
+    const result = search(
       candidateBfuCount,
       maxBfuCount,
       bfuSizes,
-      rdoResult.wordLengths,
-      rdoResult.scaleFactorIndices,
+      availableBits,
       biasedScaleFactors,
+      allScaleFactorIndices,
       zeroBitDistortions
     )
 
-    if (totalDistortion < minTotalDistortion) {
-      minTotalDistortion = totalDistortion
+    if (result.distortion < minTotalDistortion) {
+      minTotalDistortion = result.distortion
       bestResult = {
         bfuCount: candidateBfuCount,
-        allocation: rdoResult.wordLengths,
-        scaleFactorIndices: rdoResult.scaleFactorIndices,
+        allocation: result.wordLengths,
+        scaleFactorIndices: result.scaleFactorIndices,
       }
     }
   }
