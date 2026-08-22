@@ -12,11 +12,8 @@ import { transformSpectrum as mdctStage } from './analysis/spectrum.js'
 import { pipe } from './utils.js'
 import { BufferPool } from './state.js'
 import { EncoderOptions } from './core/options.js'
-import {
-  AudioProcessor,
-  decodeAeaPcm,
-  encodeAeaPcm,
-} from './boundary/stream.js'
+import { AudioProcessor } from './boundary/processor.js'
+import { decodeAeaPcm, encodeAeaPcm } from './boundary/stream.js'
 import { FFT } from './signal/fft.js'
 import {
   WORD_LENGTH_BITS,
