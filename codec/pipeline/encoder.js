@@ -5,57 +5,16 @@
  * packing remains the responsibility of serializeFrame().
  */
 
+import { allocate } from '../allocation/stage.js'
 import { analyze } from '../analysis/stage.js'
-import { allocateBits } from '../coding/bitallocation.js'
-import {
-  groupIntoBFUs,
-  quantize as quantizeCoefficient,
-} from '../coding/quantization.js'
+import { quantize as quantizeCoefficient } from '../coding/quantization.js'
 import { BufferPool } from '../core/buffers.js'
 import { WORD_LENGTH_BITS } from '../core/constants.js'
 import { EncoderOptions } from '../core/options.js'
-import { pipe, throwError } from '../utils.js'
+import { pipe } from '../utils.js'
 
 /**
- * Allocate the frame budget across block floating units.
- *
- * @param {Object} context
- * @param {EncoderOptions} context.options
- * @returns {Function}
- */
-export function allocate(context) {
-  const options =
-    context?.options ?? throwError('allocate: options is required')
-
-  /**
-   * @param {{coefficients: Float32Array, blockModes: Array<number>}} input
-   * @returns {Object}
-   */
-  return (input) => {
-    const { coefficients, blockModes } = input
-    const { bfuData, bfuSizes, bfuCount } = groupIntoBFUs(
-      coefficients,
-      blockModes
-    )
-    const {
-      bfuCount: selectedBfuCount,
-      allocation,
-      scaleFactorIndices,
-    } = allocateBits(bfuData, bfuSizes, bfuCount, options.allocationBias)
-
-    return {
-      bfuData,
-      bfuSizes,
-      nBfu: selectedBfuCount,
-      scaleFactorIndices: scaleFactorIndices.slice(0, selectedBfuCount),
-      wordLengthIndices: allocation.slice(0, selectedBfuCount),
-      blockModes,
-    }
-  }
-}
-
-/**
- * Materialize the retained allocation as quantized ATRAC1 symbols.
+ * Materialize retained allocation as quantized ATRAC1 symbols.
  *
  * @returns {Function}
  */

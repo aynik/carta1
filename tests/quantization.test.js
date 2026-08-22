@@ -5,7 +5,7 @@ import {
   groupIntoBFUs,
 } from '../codec/coding/quantization'
 import { SCALE_FACTORS } from '../codec/core/constants'
-import { findScaleFactor } from '../codec/coding/bitallocation'
+import { findScaleFactor } from '../codec/allocation/solve'
 
 describe('Quantization', () => {
   describe('quantize and dequantize', () => {

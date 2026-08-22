@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { allocateBits, findScaleFactor } from '../codec/coding/bitallocation'
+import { findScaleFactor, solve } from '../codec/allocation/solve'
 import {
   FRAME_BITS,
   FRAME_OVERHEAD_BITS,
@@ -16,7 +16,7 @@ describe('RDO Bit Allocation', () => {
     const bfuSizes = new Array(52).fill(10)
     const bfuData = createMockBfuData(bfuSizes)
 
-    const { bfuCount, allocation } = allocateBits(bfuData, bfuSizes, 52, 1.0)
+    const { bfuCount, allocation } = solve(bfuData, bfuSizes, 52, 1.0)
 
     const overhead = FRAME_OVERHEAD_BITS + bfuCount * BITS_PER_BFU_METADATA
     let usedBits = 0
@@ -31,7 +31,7 @@ describe('RDO Bit Allocation', () => {
     const bfuSizes = new Array(52).fill(10)
     const bfuData = createMockBfuData(bfuSizes)
 
-    const { bfuCount } = allocateBits(bfuData, bfuSizes, 52, 1.0)
+    const { bfuCount } = solve(bfuData, bfuSizes, 52, 1.0)
     expect(bfuCount).toBe(52)
   })
 
@@ -39,7 +39,7 @@ describe('RDO Bit Allocation', () => {
     const bfuSizes = new Array(52).fill(10)
     const bfuData = createMockBfuData(bfuSizes, 0)
 
-    const { allocation } = allocateBits(bfuData, bfuSizes, 52, 1.0)
+    const { allocation } = solve(bfuData, bfuSizes, 52, 1.0)
 
     // With no signal, all allocations should be 0
     expect(allocation.every((bits) => bits === 0)).toBe(true)
@@ -60,7 +60,7 @@ describe('RDO Bit Allocation', () => {
       }
     }
 
-    const { allocation } = allocateBits(bfuData, bfuSizes, 52, 1.0)
+    const { allocation } = solve(bfuData, bfuSizes, 52, 1.0)
 
     // High energy BFUs should get more bits than low energy BFUs
     const avgHighEnergy = allocation.slice(0, 5).reduce((a, b) => a + b, 0) / 5
@@ -73,7 +73,7 @@ describe('RDO Bit Allocation', () => {
     const bfuSizes = new Array(52).fill(10)
     const bfuData = createMockBfuData(bfuSizes)
 
-    const { scaleFactorIndices } = allocateBits(bfuData, bfuSizes, 52, 1.0)
+    const { scaleFactorIndices } = solve(bfuData, bfuSizes, 52, 1.0)
     expect(scaleFactorIndices).toBeDefined()
   })
 })

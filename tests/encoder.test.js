@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { analyze } from '../codec/analysis/stage'
-import { allocate, encode, quantize } from '../codec/pipeline/encoder'
+import { allocate } from '../codec/allocation/stage'
+import { encode, quantize } from '../codec/pipeline/encoder'
 import { BufferPool } from '../codec/core/buffers'
 import { EncoderOptions } from '../codec/core/options'
 import { serializeFrame } from '../codec/io/serialization'

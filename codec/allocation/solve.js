@@ -71,7 +71,7 @@ function buildBiasedScaleFactorTable(bias) {
  * @param {number} allocationBias
  * @returns {{bfuCount:number, allocation:Int32Array, scaleFactorIndices:Int32Array}}
  */
-export function allocateBits(bfuData, bfuSizes, maxBfuCount, allocationBias) {
+export function solve(bfuData, bfuSizes, maxBfuCount, allocationBias) {
   const allScaleFactorIndices = new Int32Array(maxBfuCount)
   const zeroBitDistortions = new Float32Array(maxBfuCount)
   const biasedScaleFactors = buildBiasedScaleFactorTable(allocationBias)
@@ -101,7 +101,7 @@ export function allocateBits(bfuData, bfuSizes, maxBfuCount, allocationBias) {
 
     if (availableBits < 0) continue
 
-    const rdoResult = distributeBitsRDO(
+    const rdoResult = distributeBits(
       candidateBfuCount,
       bfuSizes,
       availableBits,
@@ -109,7 +109,7 @@ export function allocateBits(bfuData, bfuSizes, maxBfuCount, allocationBias) {
       allScaleFactorIndices
     )
 
-    const totalDistortion = calculateTotalDistortion(
+    const totalDistortion = measureDistortion(
       candidateBfuCount,
       maxBfuCount,
       bfuSizes,
@@ -154,7 +154,7 @@ export function allocateBits(bfuData, bfuSizes, maxBfuCount, allocationBias) {
  * @param {Float32Array} zeroBitDistortions
  * @returns {number}
  */
-function calculateTotalDistortion(
+function measureDistortion(
   activeBfuCount,
   maxBfuCount,
   bfuSizes,
@@ -200,7 +200,7 @@ function calculateTotalDistortion(
  * @param {Int32Array} allScaleFactorIndices
  * @returns {{wordLengths: Int32Array, scaleFactorIndices: Int32Array}}
  */
-function distributeBitsRDO(
+function distributeBits(
   activeBfuCount,
   bfuSizes,
   remainingBits,
