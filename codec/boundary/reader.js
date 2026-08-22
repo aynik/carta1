@@ -6,7 +6,7 @@
  */
 
 import fs from 'fs'
-import { AeaFile } from '../boundary/container.js'
+import { AeaFile } from './container.js'
 import { deserializeFrame } from '../syntax/frame.js'
 import { AEA_HEADER_SIZE, SOUND_UNIT_SIZE } from '../core/constants.js'
 

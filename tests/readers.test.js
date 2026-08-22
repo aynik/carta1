@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { AeaReader } from '../codec/io/readers'
+import { AeaReader } from '../codec/boundary/reader'
 import fs from 'fs'
 import path from 'path'
 import { AeaFile } from '../codec/boundary/container.js'

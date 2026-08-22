@@ -20,7 +20,7 @@ import cliProgress from 'cli-progress'
 import wav from 'wav'
 
 import { AudioProcessor } from '../codec/io/processor.js'
-import { AeaReader } from '../codec/io/readers.js'
+import { AeaReader } from '../codec/boundary/reader.js'
 import { AeaFile } from '../codec/boundary/container.js'
 import { deserializeFrame } from '../codec/syntax/frame.js'
 import { EncoderOptions } from '../codec/core/options.js'
