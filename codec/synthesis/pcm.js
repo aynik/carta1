@@ -9,7 +9,7 @@ import { throwError } from '../utils.js'
  * Synthesize full-spectrum PCM from frequency bands.
  *
  * @param {Object} context
- * @param {import('../core/buffers.js').BufferPool} context.bufferPool
+ * @param {import('../state.js').BufferPool} context.bufferPool
  * @returns {Function}
  * @throws {Error} If the buffer pool is missing
  */

@@ -231,7 +231,7 @@ function calculateTransientScore(features) {
  * Select transform block sizes from transient analysis.
  *
  * @param {Object} context
- * @param {import('../core/buffers.js').BufferPool} context.bufferPool
+ * @param {import('../state.js').BufferPool} context.bufferPool
  * @param {import('../core/options.js').EncoderOptions} context.options
  * @returns {Function}
  * @throws {Error} If the required context is missing

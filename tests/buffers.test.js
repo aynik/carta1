@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { BufferPool } from '../codec/core/buffers'
+import { BufferPool } from '../codec/state'
 import { QMF_DELAY, QMF_HIGH_BAND_DELAY } from '../codec/core/constants'
 
 describe('BufferPool', () => {

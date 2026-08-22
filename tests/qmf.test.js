@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { analyzeQmfPair, synthesizeQmfPair } from '../codec/signal/bands'
 import { TEST_SIGNALS } from './testSignals'
-import { BufferPool } from '../codec/core/buffers'
+import { BufferPool } from '../codec/state'
 import { QMF_DELAY } from '../codec/core/constants'
 
 describe('QMF Analysis and Synthesis', () => {

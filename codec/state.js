@@ -2,7 +2,7 @@
  * Carta1 Audio Codec - Buffer Management
  */
 
-import { QMF_DELAY, QMF_HIGH_BAND_DELAY } from './constants.js'
+import { QMF_DELAY, QMF_HIGH_BAND_DELAY } from './core/constants.js'
 
 export class BufferPool {
   constructor() {

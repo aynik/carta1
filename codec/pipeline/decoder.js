@@ -5,8 +5,8 @@
  * remains the responsibility of deserializeFrame().
  */
 
-import { BufferPool } from '../core/buffers.js'
 import { dequantize } from '../dequantization.js'
+import { BufferPool } from '../state.js'
 import { synthesize } from '../synthesis/stage.js'
 import { pipe } from '../utils.js'
 

@@ -23,7 +23,7 @@ import { throwError } from '../utils.js'
  * Synthesize time-domain bands from the ATRAC1 spectrum.
  *
  * @param {Object} context
- * @param {import('../core/buffers.js').BufferPool} context.bufferPool
+ * @param {import('../state.js').BufferPool} context.bufferPool
  * @returns {Function}
  * @throws {Error} If the buffer pool is missing
  */
