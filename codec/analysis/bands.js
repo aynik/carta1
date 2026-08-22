@@ -2,7 +2,7 @@
  * Carta1 QMF analysis application.
  */
 
-import { qmfAnalysis } from '../transforms/qmf.js'
+import { analyzeQmfPair } from '../signal/bands.js'
 import { throwError } from '../utils.js'
 
 /**
@@ -23,14 +23,14 @@ export function analyzeBands(context) {
    * @returns {{bands: Array<Float32Array>}}
    */
   return (pcmSamples) => {
-    const stage1 = qmfAnalysis(
+    const stage1 = analyzeQmfPair(
       pcmSamples,
       delays.lowBand,
       bufferPool.qmfWorkBuffers
     )
     delays.lowBand = stage1.newDelay
 
-    const stage2 = qmfAnalysis(
+    const stage2 = analyzeQmfPair(
       stage1.lowBand,
       delays.midBand,
       bufferPool.qmfWorkBuffers

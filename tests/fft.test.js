@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { FFT } from '../codec/transforms/fft'
+import { FFT } from '../codec/signal/fft'
 import { TEST_SIGNALS } from './testSignals'
 
 describe('FFT', () => {

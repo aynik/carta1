@@ -16,7 +16,7 @@ import { pipe } from './utils.js'
 import { BufferPool } from './core/buffers.js'
 import { EncoderOptions } from './core/options.js'
 import { AudioProcessor, decodeAeaPcm, encodeAeaPcm } from './io/processor.js'
-import { FFT } from './transforms/fft.js'
+import { FFT } from './signal/fft.js'
 import {
   WORD_LENGTH_BITS,
   SPECS_PER_BFU,

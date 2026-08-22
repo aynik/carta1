@@ -7,7 +7,7 @@
  */
 
 import { FFT_SIZE_HIGH, FFT_SIZE_LOW, FFT_SIZE_MID } from '../core/constants.js'
-import { FFT } from '../transforms/fft.js'
+import { FFT } from '../signal/fft.js'
 import { throwError } from '../utils.js'
 
 /**

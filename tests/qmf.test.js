@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { qmfAnalysis, qmfSynthesis } from '../codec/transforms/qmf'
+import { analyzeQmfPair, synthesizeQmfPair } from '../codec/signal/bands'
 import { TEST_SIGNALS } from './testSignals'
 import { BufferPool } from '../codec/core/buffers'
 import { QMF_DELAY } from '../codec/core/constants'
@@ -11,14 +11,14 @@ describe('QMF Analysis and Synthesis', () => {
     const signal = TEST_SIGNALS.sine(440, 44100, 512)
     let delayLine = new Float32Array(QMF_DELAY)
 
-    const { lowBand, highBand, newDelay } = qmfAnalysis(
+    const { lowBand, highBand, newDelay } = analyzeQmfPair(
       signal,
       delayLine,
       bufferPool.qmfWorkBuffers
     )
     delayLine = newDelay
 
-    const { output } = qmfSynthesis(
+    const { output } = synthesizeQmfPair(
       lowBand,
       highBand,
       delayLine,
@@ -49,12 +49,12 @@ describe('QMF Analysis and Synthesis', () => {
 
     let delayLine = new Float32Array(QMF_DELAY)
 
-    const { lowBand: lowBandForLow } = qmfAnalysis(
+    const { lowBand: lowBandForLow } = analyzeQmfPair(
       lowSignal,
       delayLine,
       bufferPool.qmfWorkBuffers
     )
-    const { highBand: highBandForHigh } = qmfAnalysis(
+    const { highBand: highBandForHigh } = analyzeQmfPair(
       highSignal,
       delayLine,
       bufferPool.qmfWorkBuffers
@@ -70,12 +70,12 @@ describe('QMF Analysis and Synthesis', () => {
     const signal = TEST_SIGNALS.impulse(0, 512)
     let delayLine = new Float32Array(QMF_DELAY)
 
-    const { lowBand, highBand, newDelay } = qmfAnalysis(
+    const { lowBand, highBand, newDelay } = analyzeQmfPair(
       signal,
       delayLine,
       bufferPool.qmfWorkBuffers
     )
-    const { output } = qmfSynthesis(
+    const { output } = synthesizeQmfPair(
       lowBand,
       highBand,
       newDelay,
@@ -99,12 +99,12 @@ describe('QMF Analysis and Synthesis', () => {
     const signal = TEST_SIGNALS.sine(11025, 44100, 512)
     let delayLine = new Float32Array(QMF_DELAY)
 
-    const { lowBand, highBand, newDelay } = qmfAnalysis(
+    const { lowBand, highBand, newDelay } = analyzeQmfPair(
       signal,
       delayLine,
       bufferPool.qmfWorkBuffers
     )
-    const { output } = qmfSynthesis(
+    const { output } = synthesizeQmfPair(
       lowBand,
       highBand,
       newDelay,

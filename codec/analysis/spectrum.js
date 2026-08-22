@@ -11,8 +11,14 @@ import {
   MDCT_SIZE_SHORT,
   WINDOW_SHORT,
 } from '../core/constants.js'
-import { mdct64, mdct256, mdct512 } from '../transforms/mdct.js'
-import { calculateBandOffset, reverseSpectrum, throwError } from '../utils.js'
+import { calculateBandOffset } from '../core/geometry.js'
+import {
+  mdct64,
+  mdct256,
+  mdct512,
+  reverseSpectrum,
+} from '../signal/spectrum.js'
+import { throwError } from '../utils.js'
 
 /**
  * Build the ATRAC1 spectrum from analyzed bands.

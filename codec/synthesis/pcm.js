@@ -2,7 +2,7 @@
  * Carta1 PCM synthesis application.
  */
 
-import { qmfSynthesis } from '../transforms/qmf.js'
+import { synthesizeQmfPair } from '../signal/bands.js'
 import { throwError } from '../utils.js'
 
 /**
@@ -30,7 +30,7 @@ export function synthesizePcm(context) {
     const highBand = delayedHigh.slice(0, bands[0].length * 2)
     delays.highBand = delayedHigh.slice(bands[0].length * 2)
 
-    const stage2 = qmfSynthesis(
+    const stage2 = synthesizeQmfPair(
       bands[0],
       bands[1],
       delays.midBand,
@@ -38,7 +38,7 @@ export function synthesizePcm(context) {
     )
     delays.midBand = stage2.newDelay
 
-    const stage1 = qmfSynthesis(
+    const stage1 = synthesizeQmfPair(
       stage2.output,
       highBand,
       delays.lowBand,

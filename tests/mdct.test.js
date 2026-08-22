@@ -7,7 +7,7 @@ import {
   imdct256,
   imdct512,
   overlapAdd,
-} from '../codec/transforms/mdct'
+} from '../codec/signal/spectrum'
 
 describe('MDCT and IMDCT', () => {
   it('should have correct instance properties', () => {

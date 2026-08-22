@@ -16,13 +16,15 @@ import { throwError } from '../utils.js'
  * @param {Object} qmfWorkBuffers - Optional work buffers for processing
  * @returns {Object} Object containing lowBand, highBand, and newDelay
  */
-export function qmfAnalysis(input, delayLine, qmfWorkBuffers = null) {
+export function analyzeQmfPair(input, delayLine, qmfWorkBuffers = null) {
   const inputLength = input.length
   const outputLength = inputLength >> 1
 
   const workBuffer =
     qmfWorkBuffers?.delay?.[inputLength] ??
-    throwError(`qmfAnalysis: qmfWorkBuffers.delay[${inputLength}] is required`)
+    throwError(
+      `analyzeQmfPair: qmfWorkBuffers.delay[${inputLength}] is required`
+    )
   workBuffer.set(delayLine)
   workBuffer.set(input, delayLine.length)
 
@@ -57,7 +59,7 @@ export function qmfAnalysis(input, delayLine, qmfWorkBuffers = null) {
  * @param {Object} qmfWorkBuffers - Optional work buffers for processing
  * @returns {Object} Object containing output and newDelay
  */
-export function qmfSynthesis(
+export function synthesizeQmfPair(
   lowBand,
   highBand,
   delayLine,
@@ -69,7 +71,7 @@ export function qmfSynthesis(
   const workBuffer =
     qmfWorkBuffers?.delay?.[outputLength] ??
     throwError(
-      `qmfSynthesis: qmfWorkBuffers.delay[${outputLength}] is required`
+      `synthesizeQmfPair: qmfWorkBuffers.delay[${outputLength}] is required`
     )
   workBuffer.set(delayLine)
 

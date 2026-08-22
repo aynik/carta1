@@ -9,12 +9,15 @@ import {
   MDCT_TAIL_WINDOW_SIZE,
   WINDOW_SHORT,
 } from '../core/constants.js'
-import { imdct64, imdct256, imdct512, overlapAdd } from '../transforms/mdct.js'
+import { extractBandCoefficients } from '../core/geometry.js'
 import {
-  extractBandCoefficients,
+  imdct64,
+  imdct256,
+  imdct512,
+  overlapAdd,
   reverseSpectrum,
-  throwError,
-} from '../utils.js'
+} from '../signal/spectrum.js'
+import { throwError } from '../utils.js'
 
 /**
  * Synthesize time-domain bands from the ATRAC1 spectrum.

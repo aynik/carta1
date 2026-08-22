@@ -1,5 +1,5 @@
 /**
- * Carta1 Audio Codec - Fast Fourier Transform
+ * Carta1 Fast Fourier Transform operator.
  *
  * This module implements a radix-2 Cooley-Tukey FFT algorithm for frequency domain
  * analysis used in psychoacoustic modeling and transient detection.

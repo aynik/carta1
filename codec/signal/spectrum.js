@@ -1,5 +1,5 @@
 /**
- * Carta1 Audio Codec - Modified Discrete Cosine Transform
+ * Carta1 spectrum signal operators.
  *
  * This module implements forward and inverse MDCT transforms for the ATRAC1 codec.
  * The MDCT provides time-frequency analysis with perfect reconstruction and
@@ -242,4 +242,19 @@ export function overlapAdd(prev, curr, window) {
   }
 
   return output
+}
+
+/**
+ * Reverse spectral order for ATRAC1 mid and high bands.
+ *
+ * @param {Float32Array} spectrum
+ * @param {Object} reversalBuffers
+ * @returns {Float32Array}
+ */
+export function reverseSpectrum(spectrum, reversalBuffers) {
+  const reversed = reversalBuffers[spectrum.length]
+  for (let i = 0; i < spectrum.length; i++) {
+    reversed[i] = spectrum[spectrum.length - 1 - i]
+  }
+  return reversed
 }
