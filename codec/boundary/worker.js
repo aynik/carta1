@@ -15,45 +15,6 @@ import { AudioProcessor } from './processor.js'
 import { SAMPLE_RATE } from '../core/constants.js'
 
 /**
- * Handle messages from the main thread
- *
- * Supported message types:
- * - 'encode': Encode PCM to ATRAC1
- * - 'decode': Decode ATRAC1 to PCM
- * - 'parseAea': Parse AEA blob metadata
- * - 'getEncoderOptions': Get default encoder options
- */
-self.onmessage = async (e) => {
-  const { jobId, type, pcmData, aea, options, title, blob } = e.data
-
-  try {
-    let result
-
-    switch (type) {
-      case 'encode':
-        result = await encodeAtrac(pcmData, options, title)
-        break
-      case 'decode':
-        result = await decodeAtrac(aea)
-        break
-      case 'parseAea':
-        result = await AudioProcessor.parseAeaBlob(blob)
-        break
-      case 'getEncoderOptions':
-        result = getEncoderOptionsMetadata()
-        break
-      default:
-        throw new Error(`Unknown worker message type: ${type}`)
-    }
-
-    self.postMessage({ jobId, result })
-  } catch (error) {
-    console.error('Worker error:', error)
-    self.postMessage({ jobId, error: error.message })
-  }
-}
-
-/**
  * Encode PCM audio data to ATRAC1 format
  *
  * @param {Array<Float32Array>} pcmData - PCM audio data [mono] or [left, right]
@@ -130,11 +91,50 @@ async function decodeAtrac(aea) {
   const pcmFrames = await AudioProcessor.collectFrames(decodedFrames)
 
   // Create WAV blob directly
-  const wavBlob = AudioProcessor.createWavBlob(
+  const wavBlob = AudioProcessor.createPcmWaveBlob(
     pcmFrames,
     decodingInfo.channelCount,
     decodingInfo.sampleRate
   )
 
   return { wavBlob, info: decodingInfo }
+}
+
+/**
+ * Handle messages from the main thread
+ *
+ * Supported message types:
+ * - 'encode': Encode PCM to ATRAC1
+ * - 'decode': Decode ATRAC1 to PCM
+ * - 'parseAea': Parse AEA blob metadata
+ * - 'getEncoderOptions': Get default encoder options
+ */
+self.onmessage = async (e) => {
+  const { jobId, type, pcmData, aea, options, title, blob } = e.data
+
+  try {
+    let result
+
+    switch (type) {
+      case 'encode':
+        result = await encodeAtrac(pcmData, options, title)
+        break
+      case 'decode':
+        result = await decodeAtrac(aea)
+        break
+      case 'parseAea':
+        result = await AudioProcessor.parseAeaBlob(blob)
+        break
+      case 'getEncoderOptions':
+        result = getEncoderOptionsMetadata()
+        break
+      default:
+        throw new Error(`Unknown worker message type: ${type}`)
+    }
+
+    self.postMessage({ jobId, result })
+  } catch (error) {
+    console.error('Worker error:', error)
+    self.postMessage({ jobId, error: error.message })
+  }
 }

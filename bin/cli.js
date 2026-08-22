@@ -538,7 +538,7 @@ async function decodeFile(inputFile, outputFile, options) {
     })
 
     const pcmFrames = await AudioProcessor.collectFrames(decodedFrames)
-    const wavBlob = AudioProcessor.createWavBlob(
+    const wavBlob = AudioProcessor.createPcmWaveBlob(
       pcmFrames,
       metadata.channelCount,
       SAMPLE_RATE
