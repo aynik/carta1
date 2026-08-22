@@ -1,12 +1,45 @@
 /**
- * Carta1 Audio Codec - Buffer Management
+ * Carta1 stream state and reusable scratch.
  */
 
 import { QMF_DELAY, QMF_HIGH_BAND_DELAY } from './core/constants.js'
 
-export class BufferPool {
+/**
+ * Values with meaning across chronological frames.
+ */
+class History {
   constructor() {
-    // Transform buffers
+    this.qmfDelays = {
+      lowBand: new Float32Array(QMF_DELAY),
+      midBand: new Float32Array(QMF_DELAY),
+      highBand: new Float32Array(QMF_HIGH_BAND_DELAY),
+    }
+
+    this.transientDetection = [
+      new Float32Array(64),
+      new Float32Array(64),
+      new Float32Array(128),
+    ]
+
+    this.mdctOverlap = [
+      new Float32Array(32),
+      new Float32Array(32),
+      new Float32Array(32),
+    ]
+
+    this.imdctOverlap = [
+      new Float32Array(256),
+      new Float32Array(256),
+      new Float32Array(512),
+    ]
+  }
+}
+
+/**
+ * Reusable storage with no meaning between operations.
+ */
+class Scratch {
+  constructor() {
     this.transformBuffers = {
       64: new Float32Array(64),
       128: new Float32Array(128),
@@ -14,7 +47,6 @@ export class BufferPool {
       512: new Float32Array(512),
     }
 
-    // QMF work buffers
     this.qmfWorkBuffers = {
       delay: {
         128: new Float32Array(QMF_DELAY + 128),
@@ -27,21 +59,6 @@ export class BufferPool {
       },
     }
 
-    // QMF delay lines
-    this.qmfDelays = {
-      lowBand: new Float32Array(QMF_DELAY),
-      midBand: new Float32Array(QMF_DELAY),
-      highBand: new Float32Array(QMF_HIGH_BAND_DELAY),
-    }
-
-    // Transient detector
-    this.transientDetection = [
-      new Float32Array(64),
-      new Float32Array(64),
-      new Float32Array(128),
-    ]
-
-    // MDCT/IMDCT work buffers
     this.mdctBuffers = {
       16: {
         real: new Float32Array(16),
@@ -57,25 +74,19 @@ export class BufferPool {
       },
     }
 
-    // MDCT overlap buffers (encoder)
-    this.mdctOverlap = [
-      new Float32Array(32),
-      new Float32Array(32),
-      new Float32Array(32),
-    ]
-
-    // IMDCT overlap buffers (decoder)
-    this.imdctOverlap = [
-      new Float32Array(256),
-      new Float32Array(256),
-      new Float32Array(512),
-    ]
-
-    // Spectrum reversal buffers
     this.reversalBuffers = {
       32: new Float32Array(32),
       128: new Float32Array(128),
       256: new Float32Array(256),
     }
+  }
+}
+
+/**
+ * Own one chronological stream's history and reusable storage.
+ */
+export class BufferPool {
+  constructor() {
+    Object.assign(this, new History(), new Scratch())
   }
 }
