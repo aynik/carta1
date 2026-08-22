@@ -8,10 +8,22 @@ import { selectBlocks } from './blocks.js'
 import { transformSpectrum } from './spectrum.js'
 
 /**
+ * @typedef {Object} AnalysisFrame
+ * @property {Float32Array} coefficients ATRAC1 spectral coefficients
+ * @property {Array<number>} blockModes Transform mode for each band
+ */
+
+/**
+ * @callback AnalyzeFrame
+ * @param {Float32Array} pcmSamples
+ * @returns {AnalysisFrame}
+ */
+
+/**
  * Analyze a PCM frame in the ATRAC1 signal domain.
  *
- * @param {Object} context
- * @returns {Function}
+ * @param {{bufferPool: import('../state.js').BufferPool, options: import('../core/options.js').EncoderOptions}} context
+ * @returns {AnalyzeFrame}
  */
 export function analyze(context) {
   const analyzeFrame = pipe(
@@ -23,7 +35,7 @@ export function analyze(context) {
 
   /**
    * @param {Float32Array} pcmSamples
-   * @returns {{coefficients: Float32Array, blockModes: Array<number>}}
+   * @returns {AnalysisFrame}
    */
   return (pcmSamples) => {
     const { coefficients, blockModes } = analyzeFrame(pcmSamples)

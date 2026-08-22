@@ -14,6 +14,37 @@ import { deserializeFrame, serializeFrame } from '../syntax/frame.js'
 import { AeaFile } from './container.js'
 import { frameBufferToFrames, joinChannelFrames } from './pcm.js'
 
+/** @typedef {Float32Array|[Float32Array, Float32Array]} PcmFrame */
+
+/**
+ * @callback ProgressListener
+ * @param {number} frameIndex
+ * @returns {void}
+ */
+
+/**
+ * @typedef {Object} StreamingEncoderOptions
+ * @property {number} [channelCount=1]
+ * @property {ProgressListener} [onProgress]
+ * @property {EncoderOptions} [encoderOptions]
+ */
+
+/**
+ * @typedef {Object} StreamingDecoderOptions
+ * @property {number} [channelCount=1]
+ * @property {ProgressListener} [onProgress]
+ */
+
+/**
+ * @typedef {Object} AeaEncodeOptions
+ * @property {string} [title]
+ * @property {number} [transientThresholdLow]
+ * @property {number} [transientThresholdMid]
+ * @property {number} [transientThresholdHigh]
+ * @property {number} [allocationBias]
+ * @property {Array<number>|null} [fixedBlockModes]
+ */
+
 /**
  * Validate a supported channel mode.
  *
@@ -29,7 +60,7 @@ function validateChannels(channelCount) {
 /**
  * Validate one PCM frame in the selected channel mode.
  *
- * @param {Float32Array|[Float32Array, Float32Array]} frame
+ * @param {PcmFrame} frame
  * @param {number} channelCount
  * @throws {TypeError} If the frame does not match the selected mode
  * @throws {RangeError} If a selected channel is not one complete frame
@@ -58,7 +89,7 @@ function validateChunk(frame, channelCount) {
 /**
  * Create an empty structured frame for an unmatched stereo channel.
  *
- * @returns {Object}
+ * @returns {import('../quantization/stage.js').StructuredFrame}
  */
 function createDummyFrame() {
   return {
@@ -73,8 +104,9 @@ function createDummyFrame() {
 /**
  * Collect an async iterable.
  *
- * @param {AsyncIterable} frames
- * @returns {Promise<Array>}
+ * @template T
+ * @param {AsyncIterable<T>} frames
+ * @returns {Promise<Array<T>>}
  */
 async function collect(frames) {
   const output = []
@@ -89,10 +121,7 @@ async function collect(frames) {
  */
 export class AeaStreamingEncoder {
   /**
-   * @param {Object} [options]
-   * @param {number} [options.channelCount=1]
-   * @param {Function} [options.onProgress]
-   * @param {EncoderOptions} [options.encoderOptions]
+   * @param {StreamingEncoderOptions} [options]
    */
   constructor(options = {}) {
     const { channelCount = 1, onProgress, encoderOptions } = options
@@ -107,8 +136,8 @@ export class AeaStreamingEncoder {
   }
 
   /**
-   * @param {AsyncIterable<Float32Array>|AsyncIterable<[Float32Array, Float32Array]>} frames
-   * @returns {AsyncGenerator<Object>}
+   * @param {AsyncIterable<PcmFrame>} frames
+   * @returns {AsyncGenerator<import('../quantization/stage.js').StructuredFrame>}
    */
   async *frames(frames) {
     for await (const frame of frames) {
@@ -133,9 +162,7 @@ export class AeaStreamingEncoder {
  */
 export class AeaStreamingDecoder {
   /**
-   * @param {Object} [options]
-   * @param {number} [options.channelCount=1]
-   * @param {Function} [options.onProgress]
+   * @param {StreamingDecoderOptions} [options]
    */
   constructor(options = {}) {
     const { channelCount = 1, onProgress } = options
@@ -150,8 +177,8 @@ export class AeaStreamingDecoder {
   }
 
   /**
-   * @param {AsyncIterable<Object>} frames
-   * @returns {AsyncGenerator<Float32Array|[Float32Array, Float32Array]>}
+   * @param {AsyncIterable<import('../quantization/stage.js').StructuredFrame>} frames
+   * @returns {AsyncGenerator<PcmFrame>}
    */
   async *frames(frames) {
     for await (const frame of frames) {
@@ -199,7 +226,7 @@ export class AeaStreamingDecoder {
 /**
  * Create a chronological encoder.
  *
- * @param {Object} [options]
+ * @param {StreamingEncoderOptions} [options]
  * @returns {AeaStreamingEncoder}
  */
 export function createAeaStreamingEncoder(options) {
@@ -209,7 +236,7 @@ export function createAeaStreamingEncoder(options) {
 /**
  * Create a chronological decoder.
  *
- * @param {Object} [options]
+ * @param {StreamingDecoderOptions} [options]
  * @returns {AeaStreamingDecoder}
  */
 export function createAeaStreamingDecoder(options) {
@@ -220,7 +247,7 @@ export function createAeaStreamingDecoder(options) {
  * Encode complete planar PCM buffers into an AEA byte image.
  *
  * @param {Float32Array[]} channels
- * @param {Object} [options]
+ * @param {AeaEncodeOptions} [options]
  * @returns {Promise<Uint8Array>}
  */
 export async function encodeAeaPcm(channels, options = {}) {

@@ -22,12 +22,7 @@ import { packBits, unpackBits, unpackSignedBits } from './bitstream.js'
 
 /**
  * Serializes encoded frame data into binary format
- * @param {Object} frameData - The encoded frame data to serialize
- * @param {number} frameData.nBfu - Number of block floating units
- * @param {number[]} frameData.blockModes - Block modes for each band [0-2]
- * @param {Int32Array} frameData.scaleFactorIndices - Scale factor indices for each BFU
- * @param {Int32Array} frameData.wordLengthIndices - Word length indices for each BFU
- * @param {Int32Array[]} frameData.quantizedCoefficients - Quantized spectral coefficients
+ * @param {import('../quantization/stage.js').StructuredFrame} frameData - The encoded frame data to serialize
  * @returns {Uint8Array} Serialized frame data buffer
  */
 export function serializeFrame(frameData) {
@@ -92,12 +87,7 @@ export function serializeFrame(frameData) {
 /**
  * Deserializes binary frame data back into structured format
  * @param {Uint8Array} buffer - Binary frame data buffer
- * @returns {Object} Deserialized frame data
- * @returns {number} returns.nBfu - Number of block floating units
- * @returns {number[]} returns.blockModes - Block modes for each band
- * @returns {Int32Array} returns.scaleFactorIndices - Scale factor indices for each BFU
- * @returns {Int32Array} returns.wordLengthIndices - Word length indices for each BFU
- * @returns {Int32Array[]} returns.quantizedCoefficients - Quantized spectral coefficients
+ * @returns {import('../quantization/stage.js').StructuredFrame} Deserialized frame data
  * @throws {Error} If buffer size is invalid
  */
 export function deserializeFrame(buffer) {

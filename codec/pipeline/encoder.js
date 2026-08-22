@@ -13,11 +13,17 @@ import { BufferPool } from '../state.js'
 import { pipe } from '../utils.js'
 
 /**
+ * @callback EncodeFrame
+ * @param {Float32Array} pcmSamples
+ * @returns {import('../quantization/stage.js').StructuredFrame}
+ */
+
+/**
  * Create an ATRAC1 encoder.
  *
  * @param {EncoderOptions} [options=new EncoderOptions()]
  * @param {BufferPool} [bufferPool=new BufferPool()]
- * @returns {Function}
+ * @returns {EncodeFrame}
  */
 export function encode(
   options = new EncoderOptions(),

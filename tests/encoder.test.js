@@ -18,7 +18,7 @@ import { WORD_LENGTH_BITS } from '../codec/core/tables'
 
 describe('Encoder Pipeline', () => {
   it('should preserve the public MDCT stage contract', () => {
-    const originalFrame = new Float32Array(SAMPLES_PER_FRAME)
+    const originalFrame = { source: 'caller' }
     const transformFrame = mdctStage({ bufferPool: new BufferPool() })
 
     const result = transformFrame({

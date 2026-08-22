@@ -6,11 +6,16 @@ import { synthesizeQmfPair } from '../signal/bands.js'
 import { throwError } from '../utils.js'
 
 /**
+ * @callback SynthesizePcm
+ * @param {Array<Float32Array>} bands
+ * @returns {Float32Array}
+ */
+
+/**
  * Synthesize full-spectrum PCM from frequency bands.
  *
- * @param {Object} context
- * @param {import('../state.js').BufferPool} context.bufferPool
- * @returns {Function}
+ * @param {{bufferPool: import('../state.js').BufferPool}} context
+ * @returns {SynthesizePcm}
  * @throws {Error} If the buffer pool is missing
  */
 export function synthesizePcm(context) {

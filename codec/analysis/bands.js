@@ -6,11 +6,21 @@ import { analyzeQmfPair } from '../signal/bands.js'
 import { throwError } from '../utils.js'
 
 /**
+ * @typedef {Object} BandFrame
+ * @property {Array<Float32Array>} bands Three frequency bands
+ */
+
+/**
+ * @callback AnalyzeBands
+ * @param {Float32Array} pcmSamples
+ * @returns {BandFrame}
+ */
+
+/**
  * Split PCM into the three ATRAC1 frequency bands.
  *
- * @param {Object} context
- * @param {import('../state.js').BufferPool} context.bufferPool
- * @returns {Function}
+ * @param {{bufferPool: import('../state.js').BufferPool}} context
+ * @returns {AnalyzeBands}
  * @throws {Error} If the buffer pool is missing
  */
 export function analyzeBands(context) {
@@ -20,7 +30,7 @@ export function analyzeBands(context) {
 
   /**
    * @param {Float32Array} pcmSamples
-   * @returns {{bands: Array<Float32Array>}}
+   * @returns {BandFrame}
    */
   return (pcmSamples) => {
     const stage1 = analyzeQmfPair(

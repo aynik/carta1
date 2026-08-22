@@ -20,11 +20,31 @@ import {
 import { throwError } from '../utils.js'
 
 /**
+ * @typedef {Object} SpectrumInput
+ * @property {Array<Float32Array>} bands Three frequency bands
+ * @property {Array<number>} blockModes Transform mode for each band
+ * @property {unknown} [originalFrame] Caller-owned value passed through unchanged
+ */
+
+/**
+ * @typedef {Object} SpectrumFrame
+ * @property {Array<Float32Array>} bands Three frequency bands
+ * @property {Float32Array} coefficients ATRAC1 spectral coefficients
+ * @property {Array<number>} blockModes Transform mode for each band
+ * @property {unknown} [originalFrame] Caller-owned value passed through unchanged
+ */
+
+/**
+ * @callback TransformSpectrum
+ * @param {SpectrumInput} input
+ * @returns {SpectrumFrame}
+ */
+
+/**
  * Build the ATRAC1 spectrum from analyzed bands.
  *
- * @param {Object} context
- * @param {import('../state.js').BufferPool} context.bufferPool
- * @returns {Function}
+ * @param {{bufferPool: import('../state.js').BufferPool}} context
+ * @returns {TransformSpectrum}
  * @throws {Error} If the buffer pool is missing
  */
 export function transformSpectrum(context) {
@@ -139,8 +159,8 @@ export function transformSpectrum(context) {
   }
 
   /**
-   * @param {{bands: Array<Float32Array>, blockModes: Array<number>, originalFrame: Float32Array}} input
-   * @returns {{bands: Array<Float32Array>, coefficients: Float32Array, blockModes: Array<number>, originalFrame: Float32Array}}
+   * @param {SpectrumInput} input
+   * @returns {SpectrumFrame}
    */
   return (input) => {
     const { bands, blockModes, originalFrame } = input
