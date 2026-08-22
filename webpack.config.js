@@ -14,7 +14,7 @@ const builds = [
     },
   },
   {
-    entry: './codec/browser/worker.js',
+    entry: './codec/boundary/worker.js',
     output: {
       path: path.resolve('dist'),
       filename: 'carta1-worker.min.js',
@@ -22,7 +22,7 @@ const builds = [
     },
   },
   {
-    entry: './codec/browser/interface.js',
+    entry: './codec/boundary/browser.js',
     output: {
       path: path.resolve('dist'),
       filename: 'carta1-worker-interface.min.js',

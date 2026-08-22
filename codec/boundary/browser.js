@@ -1,5 +1,5 @@
 /**
- * Carta1 Worker Interface - Client-side API
+ * Carta1 browser worker boundary.
  *
  * Provides a clean async interface for encoding and decoding ATRAC1 audio
  * using Web Workers for non-blocking operation.
