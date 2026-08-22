@@ -19,7 +19,7 @@ import { performance } from 'perf_hooks'
 import cliProgress from 'cli-progress'
 import wav from 'wav'
 
-import { AudioProcessor } from '../codec/io/processor.js'
+import { AudioProcessor } from '../codec/boundary/stream.js'
 import { AeaReader } from '../codec/boundary/reader.js'
 import { AeaFile } from '../codec/boundary/container.js'
 import { deserializeFrame } from '../codec/syntax/frame.js'

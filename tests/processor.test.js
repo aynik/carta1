@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { AudioProcessor } from '../codec/io/processor'
+import { AudioProcessor } from '../codec/boundary/stream'
 import { TEST_SIGNALS } from './testSignals'
 import { SAMPLES_PER_FRAME, WAV_HEADER_SIZE } from '../codec/core/constants'
 import { decodeAeaPcm, encodeAeaPcm } from '../codec/index'

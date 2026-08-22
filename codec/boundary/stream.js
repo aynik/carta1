@@ -29,7 +29,7 @@ import {
   WAV_PCM_MAX_NEGATIVE,
   WAV_DATA_OFFSET,
 } from '../core/constants.js'
-import { AeaFile } from '../boundary/container.js'
+import { AeaFile } from './container.js'
 import { deserializeFrame, serializeFrame } from '../syntax/frame.js'
 
 /**

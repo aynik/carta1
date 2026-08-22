@@ -11,7 +11,7 @@
 
 import { AeaFile } from '../boundary/container.js'
 import { EncoderOptions } from '../core/options.js'
-import { AudioProcessor } from '../io/processor.js'
+import { AudioProcessor } from '../boundary/stream.js'
 import { SAMPLE_RATE } from '../core/constants.js'
 
 /**
