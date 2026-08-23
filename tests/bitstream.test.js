@@ -40,6 +40,19 @@ describe('Bitstream Operations', () => {
         expect(unpackBits(buffer, 0, bitCount)).toBe(value)
       }
     )
+
+    it('preserves complete unsigned 32-bit fields', () => {
+      const buffer = new Uint8Array(4)
+      packBits(buffer, 0, 0x89abcdef, 32)
+      expect(buffer).toEqual(Uint8Array.of(0x89, 0xab, 0xcd, 0xef))
+      expect(unpackBits(buffer, 0, 32)).toBe(0x89abcdef)
+    })
+
+    it('rejects unsupported field widths', () => {
+      const buffer = new Uint8Array(4)
+      expect(() => packBits(buffer, 0, 0, -1)).toThrow(RangeError)
+      expect(() => unpackBits(buffer, 0, 33)).toThrow(RangeError)
+    })
   })
 
   describe('unpackSignedBits', () => {
@@ -71,6 +84,12 @@ describe('Bitstream Operations', () => {
       const buffer = new Uint8Array(1)
       packBits(buffer, 0, 0, 4)
       expect(unpackSignedBits(buffer, 0, 4)).toBe(0)
+    })
+
+    it('sign-extends complete 32-bit fields', () => {
+      expect(
+        unpackSignedBits(Uint8Array.of(0xff, 0xff, 0xff, 0xff), 0, 32)
+      ).toBe(-1)
     })
   })
 })
