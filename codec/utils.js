@@ -1,9 +1,7 @@
 /**
  * Carta1 Audio Codec - Utilities
  *
- * This module provides common utility functions for the ATRAC1 codec including
- * pipeline composition, error handling, and audio stream processing utilities
- * for delay compensation and frame padding.
+ * This module provides common utility functions for the ATRAC1 codec.
  */
 
 /**
@@ -16,15 +14,15 @@ export function throwError(msg) {
 }
 
 /**
- * Creates a pipeline by composing multiple processing stages
- * @param {Object} context - Shared context passed to all stages
- * @param {...Function} stages - Stage functions to compose
- * @returns {Function} Composed pipeline function
+ * Compose stateful stage factories once and return the reusable frame path.
+ *
+ * @template TContext, TValue
+ * @param {TContext} context Shared stage ownership and persistent state.
+ * @param {...function(TContext): function(TValue): TValue} stages Ordered stage factories.
+ * @returns {function(TValue): TValue} Reusable composed frame operation.
  */
 export function pipe(context, ...stages) {
-  const functions = stages.map((stage) => stage(context))
-
-  return (input) => {
-    return functions.reduce((value, fn) => fn(value), input)
-  }
+  const operations = stages.map((stage) => stage(context))
+  return (input) =>
+    operations.reduce((value, operation) => operation(value), input)
 }

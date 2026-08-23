@@ -79,7 +79,7 @@ export class AudioProcessor {
 
   /**
    * @template T
-   * @param {AsyncIterable<T>} frameStream
+   * @param {AsyncIterable<T>|Iterable<T>} frameStream
    * @returns {Promise<Array<T>>}
    */
   static async collectFrames(frameStream) {
