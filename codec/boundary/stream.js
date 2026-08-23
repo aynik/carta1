@@ -6,6 +6,8 @@ import {
   AEA_HEADER_SIZE,
   SAMPLES_PER_FRAME,
   SOUND_UNIT_SIZE,
+  STREAM_FLUSH_TAIL_FRAMES,
+  STREAM_PRIMING_SAMPLES,
 } from '../core/constants.js'
 import { EncoderOptions } from '../core/options.js'
 import { decode } from '../pipeline/decoder.js'
@@ -33,6 +35,8 @@ import { frameBufferToFrames, joinChannelFrames } from './pcm.js'
  * @typedef {Object} StreamingDecoderOptions
  * @property {number} [channelCount=1]
  * @property {ProgressListener} [onProgress]
+ * @property {number} [primingSampleCount=0]
+ * @property {number} [sampleCount=Infinity]
  */
 
 /**
@@ -131,6 +135,8 @@ export class AeaStreamingEncoder {
     this.channelCount = channelCount
     this.onProgress = onProgress
     this.frameIndex = 0
+    this.sampleCount = 0
+    this.finalized = false
     this.leftEncoder = encode(codecOptions)
     this.rightEncoder = channelCount === 2 ? encode(codecOptions) : null
   }
@@ -140,6 +146,9 @@ export class AeaStreamingEncoder {
    * @returns {AsyncGenerator<import('../quantization/stage.js').StructuredFrame>}
    */
   async *frames(frames) {
+    if (this.finalized) {
+      throw new Error('ATRAC1 encoder has already been finalized')
+    }
     for await (const frame of frames) {
       validateChunk(frame, this.channelCount)
       if (this.channelCount === 1) {
@@ -150,9 +159,27 @@ export class AeaStreamingEncoder {
         yield this.rightEncoder(right)
       }
 
+      this.sampleCount += SAMPLES_PER_FRAME
+
       if (this.onProgress) {
         this.onProgress(this.frameIndex++)
       }
+    }
+  }
+
+  /**
+   * Flush the synthesis tail after a nonempty stream.
+   *
+   * @returns {Generator<import('../quantization/stage.js').StructuredFrame>}
+   */
+  *finish() {
+    if (this.finalized) return
+    this.finalized = true
+    if (this.sampleCount === 0) return
+    const silence = new Float32Array(SAMPLES_PER_FRAME)
+    for (let frame = 0; frame < STREAM_FLUSH_TAIL_FRAMES; frame++) {
+      yield this.leftEncoder(silence)
+      if (this.channelCount === 2) yield this.rightEncoder(silence)
     }
   }
 }
@@ -165,12 +192,21 @@ export class AeaStreamingDecoder {
    * @param {StreamingDecoderOptions} [options]
    */
   constructor(options = {}) {
-    const { channelCount = 1, onProgress } = options
+    const {
+      channelCount = 1,
+      onProgress,
+      primingSampleCount = 0,
+      sampleCount = Number.POSITIVE_INFINITY,
+    } = options
     validateChannels(channelCount)
 
     this.channelCount = channelCount
     this.onProgress = onProgress
     this.frameIndex = 0
+    this.primingSampleCount = primingSampleCount
+    this.sampleCount = sampleCount
+    this.timelinePosition = 0
+    this.emittedSamples = 0
     this.leftFrame = null
     this.leftDecoder = decode()
     this.rightDecoder = channelCount === 2 ? decode() : null
@@ -183,12 +219,15 @@ export class AeaStreamingDecoder {
   async *frames(frames) {
     for await (const frame of frames) {
       if (this.channelCount === 1) {
-        yield this.leftDecoder(frame)
+        yield this.trim(this.leftDecoder(frame))
         this.reportProgress()
       } else if (this.leftFrame === null) {
         this.leftFrame = frame
       } else {
-        yield [this.leftDecoder(this.leftFrame), this.rightDecoder(frame)]
+        yield this.trim([
+          this.leftDecoder(this.leftFrame),
+          this.rightDecoder(frame),
+        ])
         this.leftFrame = null
         this.reportProgress()
       }
@@ -202,13 +241,38 @@ export class AeaStreamingDecoder {
    */
   *finish() {
     if (this.channelCount === 2 && this.leftFrame !== null) {
-      yield [
+      yield this.trim([
         this.leftDecoder(this.leftFrame),
         this.rightDecoder(createDummyFrame()),
-      ]
+      ])
       this.leftFrame = null
       this.reportProgress()
     }
+    if (
+      Number.isFinite(this.sampleCount) &&
+      this.emittedSamples !== this.sampleCount
+    ) {
+      throw new RangeError(
+        `Truncated ATRAC1 timeline: decoded ${this.emittedSamples} of ${this.sampleCount} samples`
+      )
+    }
+  }
+
+  /**
+   * Apply stream priming and visible-length trimming once per PCM frame.
+   *
+   * @param {PcmFrame} frame
+   * @returns {PcmFrame}
+   * @private
+   */
+  trim(frame) {
+    const start = Math.max(0, this.primingSampleCount - this.timelinePosition)
+    const remaining = this.sampleCount - this.emittedSamples
+    const count = Math.max(0, Math.min(SAMPLES_PER_FRAME - start, remaining))
+    this.timelinePosition += SAMPLES_PER_FRAME
+    this.emittedSamples += count
+    if (this.channelCount === 1) return frame.slice(start, start + count)
+    return frame.map((channel) => channel.slice(start, start + count))
   }
 
   /**
@@ -266,8 +330,15 @@ export async function encodeAeaPcm(channels, options = {}) {
   })
   const frames = encoder.frames(frameBufferToFrames(channels))
   const encoded = await collect(frames)
+  encoded.push(...encoder.finish())
 
-  const header = AeaFile.createHeader(title, encoded.length, channels.length)
+  const header = AeaFile.createHeader(
+    title,
+    encoded.length,
+    channels.length,
+    channels[0].length,
+    STREAM_PRIMING_SAMPLES
+  )
   const output = new Uint8Array(
     header.length + encoded.length * SOUND_UNIT_SIZE
   )
@@ -299,6 +370,8 @@ export async function decodeAeaPcm(input) {
   const info = AeaFile.parseHeader(bytes.subarray(0, AEA_HEADER_SIZE))
   const decoder = createAeaStreamingDecoder({
     channelCount: info.channelCount,
+    primingSampleCount: info.primingSampleCount,
+    sampleCount: info.sampleCount,
   })
   const frames = (async function* () {
     for (

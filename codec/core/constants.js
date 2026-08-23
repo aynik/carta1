@@ -11,6 +11,11 @@ export const AEA_TITLE_OFFSET = 4
 export const AEA_TITLE_SIZE = 256
 export const AEA_FRAME_COUNT_OFFSET = 260
 export const AEA_CHANNEL_COUNT_OFFSET = 264
+export const AEA_PRIMING_SAMPLE_COUNT_OFFSET = 268
+export const AEA_SOURCE_SAMPLE_COUNT_OFFSET = 272
+
+export const STREAM_PRIMING_SAMPLES = 266
+export const STREAM_FLUSH_TAIL_FRAMES = 1
 
 export const SOUND_UNIT_SIZE = 212
 export const FRAME_BITS = SOUND_UNIT_SIZE * 8

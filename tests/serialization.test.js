@@ -51,7 +51,7 @@ describe('Serialization', () => {
 
   describe('AeaFile', () => {
     it('should create a header with the correct magic number and layout', () => {
-      const header = AeaFile.createHeader('Test Title', 123, 2)
+      const header = AeaFile.createHeader('Test Title', 123, 2, 4567, 266)
       expect(header.length).toBe(AEA_HEADER_SIZE)
       expect(header.subarray(0, 4)).toEqual(AEA_MAGIC)
 
@@ -59,6 +59,8 @@ describe('Serialization', () => {
       expect(parsed.title).toBe('Test Title')
       expect(parsed.frameCount).toBe(123)
       expect(parsed.channelCount).toBe(2)
+      expect(parsed.sampleCount).toBe(4567)
+      expect(parsed.primingSampleCount).toBe(266)
     })
 
     it('should extract metadata correctly from a parsed header', () => {

@@ -6,8 +6,11 @@ import {
   AEA_CHANNEL_COUNT_OFFSET,
   AEA_FRAME_COUNT_OFFSET,
   AEA_HEADER_SIZE,
+  AEA_PRIMING_SAMPLE_COUNT_OFFSET,
+  AEA_SOURCE_SAMPLE_COUNT_OFFSET,
   AEA_TITLE_OFFSET,
   AEA_TITLE_SIZE,
+  STREAM_PRIMING_SAMPLES,
 } from '../core/constants.js'
 import { AEA_MAGIC } from '../core/tables.js'
 
@@ -21,9 +24,17 @@ export class AeaFile {
    * @param {string} [title='']
    * @param {number} [frameCount=0]
    * @param {number} [channelCount=1]
+   * @param {number} [sampleCount=0]
+   * @param {number} [primingSampleCount=STREAM_PRIMING_SAMPLES]
    * @returns {Uint8Array}
    */
-  static createHeader(title = '', frameCount = 0, channelCount = 1) {
+  static createHeader(
+    title = '',
+    frameCount = 0,
+    channelCount = 1,
+    sampleCount = 0,
+    primingSampleCount = STREAM_PRIMING_SAMPLES
+  ) {
     const header = new Uint8Array(AEA_HEADER_SIZE)
     const view = new DataView(header.buffer)
     header.set(AEA_MAGIC, 0)
@@ -35,6 +46,12 @@ export class AeaFile {
     )
     view.setUint32(AEA_FRAME_COUNT_OFFSET, frameCount, true)
     header[AEA_CHANNEL_COUNT_OFFSET] = channelCount
+    view.setUint32(
+      AEA_PRIMING_SAMPLE_COUNT_OFFSET,
+      primingSampleCount >>> 0,
+      true
+    )
+    view.setUint32(AEA_SOURCE_SAMPLE_COUNT_OFFSET, sampleCount >>> 0, true)
     return header
   }
 
@@ -42,7 +59,7 @@ export class AeaFile {
    * Parse an AEA header.
    *
    * @param {Uint8Array} header
-   * @returns {{title: string, frameCount: number, channelCount: number}}
+   * @returns {{title: string, frameCount: number, channelCount: number, primingSampleCount: number, sampleCount: number}}
    * @throws {Error} If the header is invalid
    */
   static parseHeader(header) {
@@ -72,6 +89,8 @@ export class AeaFile {
       title,
       frameCount: view.getUint32(AEA_FRAME_COUNT_OFFSET, true),
       channelCount: header[AEA_CHANNEL_COUNT_OFFSET],
+      primingSampleCount: view.getUint32(AEA_PRIMING_SAMPLE_COUNT_OFFSET, true),
+      sampleCount: view.getUint32(AEA_SOURCE_SAMPLE_COUNT_OFFSET, true),
     }
   }
 }

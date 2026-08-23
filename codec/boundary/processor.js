@@ -5,7 +5,10 @@
 import {
   AEA_HEADER_SIZE,
   SAMPLE_RATE,
+  SAMPLES_PER_FRAME,
   SOUND_UNIT_SIZE,
+  STREAM_FLUSH_TAIL_FRAMES,
+  STREAM_PRIMING_SAMPLES,
 } from '../core/constants.js'
 import { deserializeFrame, serializeFrame } from '../syntax/frame.js'
 import { AeaFile } from './container.js'
@@ -24,6 +27,7 @@ import {
  * @typedef {Object} AeaBlobOptions
  * @property {string} [title]
  * @property {number} [channelCount=1]
+ * @property {number} [sampleCount]
  */
 
 /**
@@ -55,6 +59,7 @@ export class AudioProcessor {
   static async *encodeStream(audioFrames, options = {}) {
     const encoder = createAeaStreamingEncoder(options)
     yield* encoder.frames(audioFrames)
+    yield* encoder.finish()
   }
 
   /**
@@ -102,7 +107,17 @@ export class AudioProcessor {
       frames.push(serializeFrame(frame))
     }
 
-    const header = AeaFile.createHeader(title, frames.length, channelCount)
+    const timelineFrames = frames.length / channelCount
+    const sampleCount =
+      options.sampleCount ??
+      Math.max(0, timelineFrames - STREAM_FLUSH_TAIL_FRAMES) * SAMPLES_PER_FRAME
+    const header = AeaFile.createHeader(
+      title,
+      frames.length,
+      channelCount,
+      sampleCount,
+      STREAM_PRIMING_SAMPLES
+    )
     return new Blob([header, ...frames], { type: 'application/octet-stream' })
   }
 

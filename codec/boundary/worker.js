@@ -40,6 +40,7 @@ async function encodeAtrac(pcmData, options, title) {
     const aeaBlob = await AudioProcessor.createAeaBlob(frameArray, {
       title,
       channelCount,
+      sampleCount: pcmData[0].length,
     })
 
     // Return the blob
@@ -86,6 +87,8 @@ async function decodeAtrac(aea) {
   const encodedFrameStream = AudioProcessor.deserializedFrameStream(aeaData)
   const decodedFrames = AudioProcessor.decodeStream(encodedFrameStream, {
     channelCount: decodingInfo.channelCount,
+    primingSampleCount: decodingInfo.primingSampleCount,
+    sampleCount: decodingInfo.sampleCount,
   })
 
   const pcmFrames = await AudioProcessor.collectFrames(decodedFrames)

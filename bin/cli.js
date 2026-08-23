@@ -484,6 +484,7 @@ async function encodeFile(inputFile, outputFile, options) {
     const blob = await AudioProcessor.createAeaBlob(encodedFrames, {
       title,
       channelCount: reader.channels,
+      sampleCount: reader.totalSamples,
     })
 
     const buffer = await blob.arrayBuffer()
@@ -534,6 +535,8 @@ async function decodeFile(inputFile, outputFile, options) {
 
     const decodedFrames = AudioProcessor.decodeStream(reader, {
       channelCount: metadata.channelCount,
+      primingSampleCount: metadata.primingSampleCount,
+      sampleCount: metadata.sampleCount,
       onProgress,
     })
 

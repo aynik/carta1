@@ -31,7 +31,7 @@ describe('AudioProcessor', () => {
       for await (const frame of encodedStream) {
         frames.push(frame)
       }
-      expect(frames.length).toBe(2)
+      expect(frames.length).toBe(3)
     })
 
     it('should process a stereo stream independently', async () => {
@@ -43,7 +43,7 @@ describe('AudioProcessor', () => {
       for await (const frame of encodedStream) {
         frames.push(frame)
       }
-      expect(frames.length).toBe(4)
+      expect(frames.length).toBe(6)
     })
 
     it('should reject frames outside the selected channel mode', async () => {
@@ -148,8 +148,9 @@ describe('AudioProcessor', () => {
       const { info, frameData } = await AudioProcessor.parseAeaBlob(blob)
 
       expect(info.title).toBe('test')
-      expect(info.frameCount).toBe(2)
-      expect(frameData.length).toBe(2)
+      expect(info.frameCount).toBe(3)
+      expect(info.sampleCount).toBe(SAMPLES_PER_FRAME * 2)
+      expect(frameData.length).toBe(3)
     })
   })
 
@@ -165,8 +166,26 @@ describe('AudioProcessor', () => {
 
       expect(aea).toBeInstanceOf(Uint8Array)
       expect(decoded).toHaveLength(2)
-      expect(decoded[0]).toHaveLength(SAMPLES_PER_FRAME * 2)
-      expect(decoded[1]).toHaveLength(SAMPLES_PER_FRAME * 2)
+      expect(decoded[0]).toHaveLength(700)
+      expect(decoded[1]).toHaveLength(700)
+    })
+
+    it('aligns decoded PCM with the original source timeline', async () => {
+      const sampleCount = SAMPLES_PER_FRAME * 8
+      const impulseSample = SAMPLES_PER_FRAME * 3 + 73
+      const source = new Float32Array(sampleCount)
+      source[impulseSample] = 0.8
+
+      const [decoded] = await decodeAeaPcm(await encodeAeaPcm([source]))
+      let peakSample = 0
+      for (let sample = 1; sample < decoded.length; sample++) {
+        if (Math.abs(decoded[sample]) > Math.abs(decoded[peakSample])) {
+          peakSample = sample
+        }
+      }
+
+      expect(decoded).toHaveLength(sampleCount)
+      expect(peakSample).toBe(impulseSample)
     })
 
     it('rejects unsupported PCM input', async () => {
