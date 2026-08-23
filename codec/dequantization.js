@@ -11,26 +11,14 @@ import {
 import { dequantize as dequantizeCoefficient } from './quantization/spectrum.js'
 
 /**
- * @typedef {Object} DequantizedFrame
- * @property {Float32Array} coefficients Reconstructed ATRAC1 spectrum
- * @property {Array<number>} blockModes Transform mode for each band
- */
-
-/**
- * @callback DequantizeFrame
- * @param {import('./quantization/stage.js').StructuredFrame} frameData
- * @returns {DequantizedFrame}
- */
-
-/**
  * Reconstruct the continuous ATRAC1 spectrum.
  *
- * @returns {DequantizeFrame}
+ * @returns {Function}
  */
 export function dequantize() {
   /**
-   * @param {import('./quantization/stage.js').StructuredFrame} frameData
-   * @returns {DequantizedFrame}
+   * @param {object} frameData
+   * @returns {object}
    */
   return (frameData) => {
     const coefficients = new Float32Array(512)

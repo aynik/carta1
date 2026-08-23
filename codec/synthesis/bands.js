@@ -19,16 +19,10 @@ import {
 import { throwError } from '../utils.js'
 
 /**
- * @callback SynthesizeBands
- * @param {import('../dequantization.js').DequantizedFrame} input
- * @returns {Array<Float32Array>}
- */
-
-/**
  * Synthesize time-domain bands from the ATRAC1 spectrum.
  *
- * @param {{bufferPool: import('../state.js').BufferPool}} context
- * @returns {SynthesizeBands}
+ * @param {object} context
+ * @returns {Function}
  * @throws {Error} If the buffer pool is missing
  */
 export function synthesizeSpectrum(context) {
@@ -187,7 +181,7 @@ export function synthesizeSpectrum(context) {
   }
 
   /**
-   * @param {import('../dequantization.js').DequantizedFrame} input
+   * @param {object} input
    * @returns {Array<Float32Array>}
    */
   return (input) => {

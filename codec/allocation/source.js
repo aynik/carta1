@@ -14,7 +14,7 @@ import {
  *
  * @param {Float32Array} coefficients
  * @param {Array<number>} blockModes
- * @returns {{bfuData: Array<Float32Array>, bfuSizes: Array<number>, bfuCount: number}}
+ * @returns {object} Grouped bit-frequency units.
  */
 export function groupIntoBFUs(coefficients, blockModes) {
   const bfuData = []
@@ -62,7 +62,7 @@ export function groupIntoBFUs(coefficients, blockModes) {
  *
  * @param {Float32Array} coefficients
  * @param {Array<number>} blockModes
- * @returns {{bfuData: Array<Float32Array>, bfuSizes: Array<number>, bfuCount: number}}
+ * @returns {object} Allocation source.
  */
 export function prepare(coefficients, blockModes) {
   return groupIntoBFUs(coefficients, blockModes)

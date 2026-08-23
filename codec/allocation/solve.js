@@ -72,7 +72,7 @@ function buildBiasedScaleFactorTable(bias) {
  * @param {Float64Array} biasedScaleFactors
  * @param {Int32Array} allScaleFactorIndices
  * @param {Float32Array} zeroBitDistortions
- * @returns {{distortion: number, wordLengths: Int32Array, scaleFactorIndices: Int32Array}}
+ * @returns {object} Allocation result.
  */
 function search(
   activeBfuCount,
@@ -159,7 +159,7 @@ function measureDistortion(
  * @param {number} remainingBits
  * @param {Float64Array} biasedScaleFactors
  * @param {Int32Array} allScaleFactorIndices
- * @returns {{wordLengths: Int32Array, scaleFactorIndices: Int32Array}}
+ * @returns {object} Retained allocation decisions.
  */
 function distributeBits(
   activeBfuCount,

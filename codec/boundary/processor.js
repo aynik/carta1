@@ -20,23 +20,13 @@ import {
   encodeAeaPcm,
 } from './stream.js'
 
-/** @typedef {import('../quantization/stage.js').StructuredFrame} StructuredFrame */
-/** @typedef {import('./stream.js').PcmFrame} PcmFrame */
-
-/**
- * @typedef {Object} AeaBlobOptions
- * @property {string} [title]
- * @property {number} [channelCount=1]
- * @property {number} [sampleCount]
- */
-
 /**
  * High-level audio processing facade.
  */
 export class AudioProcessor {
   /**
    * @param {Float32Array[]} channels
-   * @param {import('./stream.js').AeaEncodeOptions} [options]
+   * @param {object} [options]
    * @returns {Promise<Uint8Array>}
    */
   static encodeAeaPcm(channels, options = {}) {
@@ -52,9 +42,9 @@ export class AudioProcessor {
   }
 
   /**
-   * @param {AsyncIterable<PcmFrame>} audioFrames
-   * @param {import('./stream.js').StreamingEncoderOptions} [options]
-   * @returns {AsyncGenerator<StructuredFrame>}
+   * @param {AsyncIterable<object>} audioFrames
+   * @param {object} [options]
+   * @returns {AsyncGenerator<object>}
    */
   static async *encodeStream(audioFrames, options = {}) {
     const encoder = createAeaStreamingEncoder(options)
@@ -63,9 +53,9 @@ export class AudioProcessor {
   }
 
   /**
-   * @param {AsyncIterable<StructuredFrame>} encodedFrames
-   * @param {import('./stream.js').StreamingDecoderOptions} [options]
-   * @returns {AsyncGenerator<PcmFrame>}
+   * @param {AsyncIterable<object>} encodedFrames
+   * @param {object} [options]
+   * @returns {AsyncGenerator<object>}
    */
   static async *decodeStream(encodedFrames, options = {}) {
     const decoder = createAeaStreamingDecoder(options)
@@ -83,9 +73,8 @@ export class AudioProcessor {
   }
 
   /**
-   * @template T
-   * @param {AsyncIterable<T>|Iterable<T>} frameStream
-   * @returns {Promise<Array<T>>}
+   * @param {AsyncIterable|Iterable} frameStream
+   * @returns {Promise<Array>}
    */
   static async collectFrames(frameStream) {
     const frames = []
@@ -96,8 +85,8 @@ export class AudioProcessor {
   }
 
   /**
-   * @param {AsyncIterable<StructuredFrame>} encodedFrames
-   * @param {AeaBlobOptions} [options]
+   * @param {AsyncIterable<object>} encodedFrames
+   * @param {object} [options]
    * @returns {Promise<Blob>}
    */
   static async createAeaBlob(encodedFrames, options = {}) {
@@ -123,7 +112,7 @@ export class AudioProcessor {
 
   /**
    * @param {Blob} blob
-   * @returns {Promise<{info: {title: string, frameCount: number, channelCount: number}, frameData: Uint8Array[]}>}
+   * @returns {Promise<object>} Parsed AEA data.
    */
   static async parseAeaBlob(blob) {
     const buffer = await blob.arrayBuffer()
@@ -145,7 +134,7 @@ export class AudioProcessor {
 
   /**
    * @param {Uint8Array[]} frameData
-   * @returns {Generator<StructuredFrame>}
+   * @returns {Generator<object>}
    */
   static *deserializedFrameStream(frameData) {
     for (const frame of frameData) {

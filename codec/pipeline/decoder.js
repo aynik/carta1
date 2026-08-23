@@ -11,16 +11,10 @@ import { synthesize } from '../synthesis/stage.js'
 import { pipe } from '../utils.js'
 
 /**
- * @callback DecodeFrame
- * @param {import('../quantization/stage.js').StructuredFrame} frame
- * @returns {Float32Array}
- */
-
-/**
  * Create an ATRAC1 decoder.
  *
  * @param {BufferPool} [bufferPool=new BufferPool()]
- * @returns {DecodeFrame}
+ * @returns {Function}
  */
 export function decode(bufferPool = new BufferPool()) {
   const context = { bufferPool }

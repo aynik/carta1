@@ -22,7 +22,7 @@ import { packBits, unpackBits, unpackSignedBits } from './bitstream.js'
 
 /**
  * Serializes encoded frame data into binary format
- * @param {import('../quantization/stage.js').StructuredFrame} frameData - The encoded frame data to serialize
+ * @param {object} frameData - The encoded frame data to serialize
  * @returns {Uint8Array} Serialized frame data buffer
  */
 export function serializeFrame(frameData) {
@@ -87,7 +87,7 @@ export function serializeFrame(frameData) {
 /**
  * Deserializes binary frame data back into structured format
  * @param {Uint8Array} buffer - Binary frame data buffer
- * @returns {import('../quantization/stage.js').StructuredFrame} Deserialized frame data
+ * @returns {object} Deserialized frame data
  * @throws {Error} If buffer size is invalid
  */
 export function deserializeFrame(buffer) {

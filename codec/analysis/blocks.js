@@ -11,18 +11,6 @@ import { FFT } from '../signal/fft.js'
 import { throwError } from '../utils.js'
 
 /**
- * @typedef {Object} BlockFrame
- * @property {Array<Float32Array>} bands Three frequency bands
- * @property {Array<number>} blockModes Transform mode for each band
- */
-
-/**
- * @callback SelectBlocks
- * @param {import('./bands.js').BandFrame} input
- * @returns {BlockFrame}
- */
-
-/**
  * Calculate all spectral features for transient detection
  * @param {Float32Array} currentCoeffs - Current frame coefficients
  * @param {Float32Array} prevCoeffs - Previous frame coefficients
@@ -242,8 +230,8 @@ export function detectTransient(currentCoeffs, prevCoeffs, threshold) {
 /**
  * Select transform block sizes from transient analysis.
  *
- * @param {{bufferPool: import('../state.js').BufferPool, options: import('../core/options.js').EncoderOptions}} context
- * @returns {SelectBlocks}
+ * @param {object} context
+ * @returns {Function}
  * @throws {Error} If the required context is missing
  */
 export function selectBlocks(context) {
@@ -254,8 +242,8 @@ export function selectBlocks(context) {
   const fftSizes = [FFT_SIZE_LOW, FFT_SIZE_MID, FFT_SIZE_HIGH]
 
   /**
-   * @param {import('./bands.js').BandFrame} input
-   * @returns {BlockFrame}
+   * @param {object} input
+   * @returns {object}
    */
   return (input) => {
     const { bands } = input

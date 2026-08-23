@@ -59,7 +59,7 @@ export class AeaFile {
    * Parse an AEA header.
    *
    * @param {Uint8Array} header
-   * @returns {{title: string, frameCount: number, channelCount: number, primingSampleCount: number, sampleCount: number}}
+   * @returns {object} Container metadata.
    * @throws {Error} If the header is invalid
    */
   static parseHeader(header) {
