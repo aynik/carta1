@@ -160,7 +160,9 @@ export class AudioProcessor {
     } else {
       throw new Error(`Unsupported channel count: ${channelCount}`)
     }
-    return createPcmWave(channels, { sampleRate })
+    return new Blob([createPcmWave(channels, { sampleRate })], {
+      type: 'audio/wav',
+    })
   }
 
   /**

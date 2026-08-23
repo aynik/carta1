@@ -53,6 +53,20 @@ export function joinChannelFrames(frames) {
  * @throws {Error} If the channel count is unsupported
  */
 export function* frameBufferToFrames(buffers, frameSize = SAMPLES_PER_FRAME) {
+  if (
+    !Array.isArray(buffers) ||
+    (buffers.length !== 1 && buffers.length !== 2) ||
+    !buffers.every(
+      (buffer) =>
+        buffer instanceof Float32Array && buffer.length === buffers[0].length
+    ) ||
+    !Number.isInteger(frameSize) ||
+    frameSize < 1
+  ) {
+    throw new RangeError(
+      'ATRAC1 framing requires one or two equally sized Float32 channels and a positive integer frame size'
+    )
+  }
   if (buffers.length === 1) {
     const [left] = buffers
     for (let offset = 0; offset < left.length; offset += frameSize) {
@@ -65,7 +79,7 @@ export function* frameBufferToFrames(buffers, frameSize = SAMPLES_PER_FRAME) {
 
   if (buffers.length === 2) {
     const [left, right] = buffers
-    const sampleCount = Math.max(left.length, right.length)
+    const sampleCount = left.length
     for (let offset = 0; offset < sampleCount; offset += frameSize) {
       const leftFrame = new Float32Array(frameSize)
       const rightFrame = new Float32Array(frameSize)
@@ -75,8 +89,6 @@ export function* frameBufferToFrames(buffers, frameSize = SAMPLES_PER_FRAME) {
     }
     return
   }
-
-  throw new Error(`Unsupported channel count: ${buffers.length}`)
 }
 
 /**
@@ -99,14 +111,14 @@ export function floatToPcm16(sample) {
  * @param {number} options.sampleCount
  * @param {number} options.sampleRate
  * @param {number} options.channels
- * @returns {ArrayBuffer}
+ * @returns {Uint8Array}
  */
 export function createPcmWaveHeader({ sampleCount, sampleRate, channels }) {
   const byteRate = sampleRate * channels * WAV_BYTES_PER_SAMPLE
   const blockAlign = channels * WAV_BYTES_PER_SAMPLE
   const dataSize = sampleCount * blockAlign
-  const output = new ArrayBuffer(WAV_HEADER_SIZE)
-  const view = new DataView(output)
+  const output = new Uint8Array(WAV_HEADER_SIZE)
+  const view = new DataView(output.buffer)
 
   writeFourCc(view, 0, 'RIFF')
   view.setUint32(4, WAV_DATA_OFFSET + dataSize, true)
@@ -128,19 +140,29 @@ export function createPcmWaveHeader({ sampleCount, sampleRate, channels }) {
  * Interleave planar normalized channels as PCM16.
  *
  * @param {Float32Array[]} channels
- * @returns {ArrayBuffer}
+ * @returns {Uint8Array}
  */
 export function interleavePcm16(channels) {
-  const sampleCount = Math.max(...channels.map((channel) => channel.length))
-  const output = new ArrayBuffer(
+  if (
+    !Array.isArray(channels) ||
+    channels.length < 1 ||
+    !channels.every(
+      (channel) =>
+        channel instanceof Float32Array && channel.length === channels[0].length
+    )
+  ) {
+    throw new RangeError('PCM must contain equally sized Float32 channels')
+  }
+  const sampleCount = channels[0].length
+  const output = new Uint8Array(
     sampleCount * channels.length * WAV_BYTES_PER_SAMPLE
   )
-  const view = new DataView(output)
+  const view = new DataView(output.buffer)
   let offset = 0
 
   for (let sample = 0; sample < sampleCount; sample++) {
     for (const channel of channels) {
-      view.setInt16(offset, floatToPcm16(channel[sample] ?? 0), true)
+      view.setInt16(offset, floatToPcm16(channel[sample]), true)
       offset += WAV_BYTES_PER_SAMPLE
     }
   }
@@ -148,20 +170,24 @@ export function interleavePcm16(channels) {
 }
 
 /**
- * Create a PCM WAVE blob from planar channels.
+ * Create a complete PCM WAVE byte image from planar channels.
  *
  * @param {Float32Array[]} channels
  * @param {Object} [options]
  * @param {number} [options.sampleRate=SAMPLE_RATE]
- * @returns {Blob}
+ * @returns {Uint8Array}
  */
 export function createPcmWave(channels, options = {}) {
   const { sampleRate = SAMPLE_RATE } = options
-  const sampleCount = Math.max(...channels.map((channel) => channel.length))
+  const pcm = interleavePcm16(channels)
+  const sampleCount = channels[0].length
   const header = createPcmWaveHeader({
     sampleCount,
     sampleRate,
     channels: channels.length,
   })
-  return new Blob([header, interleavePcm16(channels)], { type: 'audio/wav' })
+  const output = new Uint8Array(header.length + pcm.length)
+  output.set(header)
+  output.set(pcm, header.length)
+  return output
 }

@@ -3,6 +3,7 @@ import { AudioProcessor } from '../codec/boundary/processor'
 import { TEST_SIGNALS } from './testSignals'
 import { SAMPLES_PER_FRAME, WAV_HEADER_SIZE } from '../codec/core/constants'
 import { decodeAeaPcm, encodeAeaPcm } from '../codec/index'
+import { createPcmWave } from '../codec/boundary/pcm'
 
 describe('AudioProcessor', () => {
   async function* createMonoStream(frameCount) {
@@ -117,6 +118,22 @@ describe('AudioProcessor', () => {
       expect(frames[0].length).toBe(SAMPLES_PER_FRAME)
       expect(frames[2].length).toBe(SAMPLES_PER_FRAME)
     })
+
+    it('rejects mismatched channels and invalid frame sizes', () => {
+      expect(() => [
+        ...AudioProcessor.frameBufferToFrames([
+          new Float32Array(2),
+          new Float32Array(1),
+        ]),
+      ]).toThrow(/equally sized/)
+      expect(() => [
+        ...AudioProcessor.frameBufferToFrames([new Float32Array(2)], 0),
+      ]).toThrow(/positive integer/)
+    })
+  })
+
+  it('keeps PCM serialization byte-native below the Blob facade', () => {
+    expect(createPcmWave([new Float32Array(1)])).toBeInstanceOf(Uint8Array)
   })
 
   describe('createAeaBlob and parseAeaBlob', () => {
