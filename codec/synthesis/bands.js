@@ -5,18 +5,42 @@
 import {
   MDCT_SHORT_BLOCK_SIZE,
   MDCT_SIZE_LONG,
+  MDCT_SIZE_MID,
+  MDCT_SIZE_SHORT,
   MDCT_TAIL_WINDOW_SIZE,
 } from '../core/constants.js'
 import { extractBandCoefficients } from '../core/geometry.js'
 import { MDCT_BAND_CONFIGS, WINDOW_SHORT } from '../core/tables.js'
-import {
-  imdct64,
-  imdct256,
-  imdct512,
-  overlapAdd,
-  reverseSpectrum,
-} from '../signal/spectrum.js'
+import { IMDCT } from '../signal/mdct.js'
+import { reverseSpectrum } from '../signal/order.js'
 import { throwError } from '../utils.js'
+
+const shortImdct = new IMDCT(MDCT_SIZE_SHORT, MDCT_SIZE_SHORT * 8)
+const middleImdct = new IMDCT(MDCT_SIZE_MID, MDCT_SIZE_MID * 8)
+const longImdct = new IMDCT(MDCT_SIZE_LONG, MDCT_SIZE_LONG * 4)
+
+/**
+ * Combine adjacent inverse-transform blocks through the codec window.
+ *
+ * @param {Float32Array} previous Previous block samples.
+ * @param {Float32Array} current Current block samples.
+ * @param {Float32Array} window Window coefficients.
+ * @returns {Float32Array} Overlap-added samples.
+ */
+export function overlapAdd(previous, current, window) {
+  const size = previous.length
+  const output = new Float32Array(size * 2)
+  for (let index = 0; index < size; index++) {
+    const headWindow = window[index]
+    const tailWindow = window[2 * size - 1 - index]
+    const previousSample = previous[index]
+    const currentSample = current[size - 1 - index]
+    output[index] = previousSample * tailWindow - currentSample * headWindow
+    output[2 * size - 1 - index] =
+      previousSample * headWindow + currentSample * tailWindow
+  }
+  return output
+}
 
 /**
  * Synthesize time-domain bands from the ATRAC1 spectrum.
@@ -30,7 +54,7 @@ export function synthesizeSpectrum(context) {
     context?.bufferPool ??
     throwError('synthesizeSpectrum: bufferPool is required')
   const overlapBuffers = bufferPool.imdctOverlap
-  const transformFunctions = [imdct256, imdct256, imdct512]
+  const transformFunctions = [middleImdct, middleImdct, longImdct]
 
   /**
    * @param {Float32Array} coefficients
@@ -151,7 +175,10 @@ export function synthesizeSpectrum(context) {
         )
       }
 
-      const inverse = imdct64.transform(blockSpectrum, bufferPool.mdctBuffers)
+      const inverse = shortImdct.transform(
+        blockSpectrum,
+        bufferPool.mdctBuffers
+      )
       const inverseStart = inverse.length / 4
       for (let i = 0; i < MDCT_SHORT_BLOCK_SIZE; i++) {
         inverseBuffer[start + i] = inverse[inverseStart + i]

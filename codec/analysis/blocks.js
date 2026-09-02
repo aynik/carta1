@@ -196,7 +196,7 @@ export function performFFT(samples, fftSize) {
   real.set(samples.subarray(0, copyLen))
 
   // Perform FFT
-  FFT.fft(real, imag)
+  FFT.transform(real, imag)
 
   // Calculate magnitude spectrum for positive frequencies
   const magnitude = new Float32Array(fftSize / 2)

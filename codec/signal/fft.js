@@ -1,66 +1,65 @@
-/**
- * Carta1 Fast Fourier Transform operator.
- *
- * This module implements a radix-2 Cooley-Tukey FFT algorithm for frequency domain
- * analysis used in psychoacoustic modeling and transient detection.
- */
+/** Complex radix-2 Fast Fourier Transform. */
 
 export class FFT {
   /**
-   * Perform in-place FFT on complex data
-   * @param {Float32Array} real - Real part of input/output data
-   * @param {Float32Array} imag - Imaginary part of input/output data
+   * Transform split complex data in place.
+   *
+   * @param {Float32Array} real Real input and output components.
+   * @param {Float32Array} imaginary Imaginary input and output components.
    */
-  static fft(real, imag) {
+  static transform(real, imaginary) {
     const size = real.length
     if (size === 1) return
 
     const bits = Math.log2(size)
-
-    // Bit reversal
-    for (let i = 0; i < size; i++) {
+    for (let index = 0; index < size; index++) {
       let reversed = 0
-      let temp = i
-      for (let b = 0; b < bits; b++) {
-        reversed = (reversed << 1) | (temp & 1)
-        temp >>= 1
+      let remaining = index
+      for (let bit = 0; bit < bits; bit++) {
+        reversed = (reversed << 1) | (remaining & 1)
+        remaining >>= 1
       }
-      if (reversed > i) {
-        ;[real[i], real[reversed]] = [real[reversed], real[i]]
-        ;[imag[i], imag[reversed]] = [imag[reversed], imag[i]]
+      if (reversed > index) {
+        const realValue = real[index]
+        real[index] = real[reversed]
+        real[reversed] = realValue
+        const imaginaryValue = imaginary[index]
+        imaginary[index] = imaginary[reversed]
+        imaginary[reversed] = imaginaryValue
       }
     }
 
-    // Cooley-Tukey decimation-in-time
     for (let stride = 2; stride <= size; stride <<= 1) {
       const halfStride = stride >> 1
       const angle = (-2 * Math.PI) / stride
-      const wReal = Math.cos(angle)
-      const wImag = Math.sin(angle)
+      const stepReal = Math.cos(angle)
+      const stepImaginary = Math.sin(angle)
 
       for (let start = 0; start < size; start += stride) {
         let twiddleReal = 1
-        let twiddleImag = 0
+        let twiddleImaginary = 0
 
-        for (let k = 0; k < halfStride; k++) {
-          const evenIndex = start + k
+        for (let offset = 0; offset < halfStride; offset++) {
+          const evenIndex = start + offset
           const oddIndex = evenIndex + halfStride
-
           const evenReal = real[evenIndex]
-          const evenImag = imag[evenIndex]
+          const evenImaginary = imaginary[evenIndex]
           const oddReal = real[oddIndex]
-          const oddImag = imag[oddIndex]
+          const oddImaginary = imaginary[oddIndex]
+          const rotatedReal =
+            oddReal * twiddleReal - oddImaginary * twiddleImaginary
+          const rotatedImaginary =
+            oddReal * twiddleImaginary + oddImaginary * twiddleReal
 
-          const tReal = oddReal * twiddleReal - oddImag * twiddleImag
-          const tImag = oddReal * twiddleImag + oddImag * twiddleReal
+          real[evenIndex] = evenReal + rotatedReal
+          imaginary[evenIndex] = evenImaginary + rotatedImaginary
+          real[oddIndex] = evenReal - rotatedReal
+          imaginary[oddIndex] = evenImaginary - rotatedImaginary
 
-          real[evenIndex] = evenReal + tReal
-          imag[evenIndex] = evenImag + tImag
-          real[oddIndex] = evenReal - tReal
-          imag[oddIndex] = evenImag - tImag
-
-          const nextReal = twiddleReal * wReal - twiddleImag * wImag
-          twiddleImag = twiddleReal * wImag + twiddleImag * wReal
+          const nextReal =
+            twiddleReal * stepReal - twiddleImaginary * stepImaginary
+          twiddleImaginary =
+            twiddleReal * stepImaginary + twiddleImaginary * stepReal
           twiddleReal = nextReal
         }
       }

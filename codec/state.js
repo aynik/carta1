@@ -62,15 +62,15 @@ class Scratch {
     this.mdctBuffers = {
       16: {
         real: new Float32Array(16),
-        imag: new Float32Array(16),
+        imaginary: new Float32Array(16),
       },
       64: {
         real: new Float32Array(64),
-        imag: new Float32Array(64),
+        imaginary: new Float32Array(64),
       },
       128: {
         real: new Float32Array(128),
-        imag: new Float32Array(128),
+        imaginary: new Float32Array(128),
       },
     }
 

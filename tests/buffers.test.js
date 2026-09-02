@@ -35,11 +35,11 @@ describe('BufferPool', () => {
 
     // MDCT/IMDCT work buffers
     expect(pool.mdctBuffers[16].real.length).toBe(16)
-    expect(pool.mdctBuffers[16].imag.length).toBe(16)
+    expect(pool.mdctBuffers[16].imaginary.length).toBe(16)
     expect(pool.mdctBuffers[64].real.length).toBe(64)
-    expect(pool.mdctBuffers[64].imag.length).toBe(64)
+    expect(pool.mdctBuffers[64].imaginary.length).toBe(64)
     expect(pool.mdctBuffers[128].real.length).toBe(128)
-    expect(pool.mdctBuffers[128].imag.length).toBe(128)
+    expect(pool.mdctBuffers[128].imaginary.length).toBe(128)
 
     // MDCT overlap buffers
     expect(pool.mdctOverlap.length).toBe(3)

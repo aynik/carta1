@@ -1,16 +1,15 @@
 import { describe, it, expect } from 'vitest'
-import {
-  mdct64,
-  mdct256,
-  mdct512,
-  imdct64,
-  imdct256,
-  imdct512,
-  overlapAdd,
-} from '../codec/signal/spectrum'
+import { MDCT, IMDCT } from '../codec/signal/mdct'
+import { overlapAdd } from '../codec/synthesis/bands'
 
 describe('MDCT and IMDCT', () => {
   it('should have correct instance properties', () => {
+    const mdct64 = new MDCT(64, 0.5)
+    const mdct256 = new MDCT(256, 0.5)
+    const mdct512 = new MDCT(512, 1)
+    const imdct64 = new IMDCT(64, 64 * 8)
+    const imdct256 = new IMDCT(256, 256 * 8)
+    const imdct512 = new IMDCT(512, 512 * 4)
     expect(mdct64.size).toBe(64)
     expect(mdct256.size).toBe(256)
     expect(mdct512.size).toBe(512)

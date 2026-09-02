@@ -11,7 +11,7 @@ describe('FFT', () => {
       const real = TEST_SIGNALS.dc(1.0, size)
       const imag = new Float32Array(size)
 
-      FFT.fft(real, imag)
+      FFT.transform(real, imag)
 
       expect(real[0]).toBeCloseTo(size, 4)
       expect(imag[0]).toBeCloseTo(0, 4)
@@ -35,7 +35,7 @@ describe('FFT', () => {
       const real = TEST_SIGNALS.sine(freq, sampleRate, size)
       const imag = new Float32Array(size)
 
-      FFT.fft(real, imag)
+      FFT.transform(real, imag)
 
       // For a pure sine wave, energy appears in both positive and negative frequency bins
       expect(Math.abs(imag[targetBin])).toBeGreaterThan(size / 4)
@@ -54,7 +54,7 @@ describe('FFT', () => {
         timeEnergy += real[i] * real[i]
       }
 
-      FFT.fft(real, imag)
+      FFT.transform(real, imag)
 
       let freqEnergy = 0
       for (let i = 0; i < size; i++) {
@@ -76,15 +76,15 @@ describe('FFT', () => {
 
     const real1 = new Float32Array(signal1)
     const imag1 = new Float32Array(size)
-    FFT.fft(real1, imag1)
+    FFT.transform(real1, imag1)
 
     const real2 = new Float32Array(signal2)
     const imag2 = new Float32Array(size)
-    FFT.fft(real2, imag2)
+    FFT.transform(real2, imag2)
 
     const combinedReal = new Float32Array(combinedSignal)
     const combinedImag = new Float32Array(size)
-    FFT.fft(combinedReal, combinedImag)
+    FFT.transform(combinedReal, combinedImag)
 
     for (let i = 0; i < size; i++) {
       expect(combinedReal[i]).toBeCloseTo(real1[i] + real2[i], 4)

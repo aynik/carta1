@@ -1,23 +1,18 @@
 /**
- * Carta1 spectrum signal operators.
+ * Modified discrete cosine transforms backed by a complex FFT.
  *
- * This module implements forward and inverse MDCT transforms for the ATRAC1 codec.
- * The MDCT provides time-frequency analysis with perfect reconstruction and
- * 50% overlap between adjacent blocks to avoid blocking artifacts.
+ * The evaluation order is part of Carta1's numerical contract. The staged
+ * Float32 decomposition used by Carta5 is mathematically equivalent but does
+ * not preserve Carta1's encoded output or perceptual-quality floor.
  */
 
 import { FFT } from './fft.js'
-import {
-  MDCT_SIZE_SHORT,
-  MDCT_SIZE_MID,
-  MDCT_SIZE_LONG,
-} from '../core/constants.js'
 import { throwError } from '../utils.js'
 
 /**
  * Base class for MDCT and IMDCT transforms
  */
-class MDCTBase {
+class MdctBase {
   constructor(size, scale) {
     this.size = size
     this.halfSize = size >> 1
@@ -40,7 +35,7 @@ class MDCTBase {
 /**
  * Forward MDCT transform
  */
-export class MDCT extends MDCTBase {
+export class MDCT extends MdctBase {
   constructor(size, scale) {
     super(size, scale)
   }
@@ -51,7 +46,12 @@ export class MDCT extends MDCTBase {
    * @param {Object} mdctBuffers - Optional work buffers for FFT
    * @returns {Float32Array} Frequency-domain MDCT coefficients
    */
-  transform(input, mdctBuffers = null) {
+  transform(
+    input,
+    mdctBuffers = null,
+    destination = null,
+    destinationOffset = 0
+  ) {
     const buffers =
       mdctBuffers?.[this.fftSize] ??
       throwError(`MDCT.transform: mdctBuffers[${this.fftSize}] is required`)
@@ -61,9 +61,9 @@ export class MDCT extends MDCTBase {
         `MDCT.transform: mdctBuffers[${this.fftSize}].real is required`
       )
     const imag =
-      buffers?.imag ??
+      buffers?.imaginary ??
       throwError(
-        `MDCT.transform: mdctBuffers[${this.fftSize}].imag is required`
+        `MDCT.transform: mdctBuffers[${this.fftSize}].imaginary is required`
       )
 
     const n4 = this.quarterSize
@@ -104,18 +104,18 @@ export class MDCT extends MDCTBase {
       imag[idx] = im * c - r * s
     }
 
-    FFT.fft(real, imag)
+    FFT.transform(real, imag)
 
     // Post-FFT processing
-    const output = new Float32Array(this.halfSize)
+    const output = destination ?? new Float32Array(this.halfSize)
     for (let i = 0; i < this.fftSize; i++) {
       const c = this.sinCosTable[i * 2]
       const s = this.sinCosTable[i * 2 + 1]
       const re = real[i]
       const im = imag[i]
 
-      output[i * 2] = -re * c - im * s
-      output[this.halfSize - 1 - i * 2] = -re * s + im * c
+      output[destinationOffset + i * 2] = -re * c - im * s
+      output[destinationOffset + this.halfSize - 1 - i * 2] = -re * s + im * c
     }
 
     return output
@@ -125,7 +125,7 @@ export class MDCT extends MDCTBase {
 /**
  * Inverse MDCT transform
  */
-export class IMDCT extends MDCTBase {
+export class IMDCT extends MdctBase {
   constructor(size, scale = null) {
     super(size, scale || size)
   }
@@ -136,7 +136,12 @@ export class IMDCT extends MDCTBase {
    * @param {Object} mdctBuffers - Optional work buffers for FFT
    * @returns {Float32Array} Time-domain output samples
    */
-  transform(input, mdctBuffers = null) {
+  transform(
+    input,
+    mdctBuffers = null,
+    destination = null,
+    destinationOffset = 0
+  ) {
     const buffers =
       mdctBuffers?.[this.fftSize] ??
       throwError(`IMDCT.transform: mdctBuffers[${this.fftSize}] is required`)
@@ -146,9 +151,9 @@ export class IMDCT extends MDCTBase {
         `IMDCT.transform: mdctBuffers[${this.fftSize}].real is required`
       )
     const imag =
-      buffers?.imag ??
+      buffers?.imaginary ??
       throwError(
-        `IMDCT.transform: mdctBuffers[${this.fftSize}].imag is required`
+        `IMDCT.transform: mdctBuffers[${this.fftSize}].imaginary is required`
       )
 
     const n4 = this.quarterSize
@@ -169,10 +174,10 @@ export class IMDCT extends MDCTBase {
       imag[i] = im * c - r * s
     }
 
-    FFT.fft(real, imag)
+    FFT.transform(real, imag)
 
     // Post-FFT butterfly
-    const output = new Float32Array(this.size)
+    const output = destination ?? new Float32Array(this.size)
 
     for (let i = 0; i < this.fftSize / 2; i++) {
       const i2 = i * 2
@@ -184,10 +189,10 @@ export class IMDCT extends MDCTBase {
       const r1 = re * c + im * s
       const i1 = re * s - im * c
 
-      output[n34 - 1 - i2] = r1
-      output[n34 + i2] = r1
-      output[n4 + i2] = i1
-      output[n4 - 1 - i2] = -i1
+      output[destinationOffset + n34 - 1 - i2] = r1
+      output[destinationOffset + n34 + i2] = r1
+      output[destinationOffset + n4 + i2] = i1
+      output[destinationOffset + n4 - 1 - i2] = -i1
     }
 
     for (let i = this.fftSize / 2; i < this.fftSize; i++) {
@@ -201,60 +206,12 @@ export class IMDCT extends MDCTBase {
       const r1 = re * c + im * s
       const i1 = re * s - im * c
 
-      output[n34 - 1 - idx] = r1
-      output[idx - n4] = -r1
-      output[n4 + idx] = i1
-      output[5 * n4 - 1 - idx] = i1
+      output[destinationOffset + n34 - 1 - idx] = r1
+      output[destinationOffset + idx - n4] = -r1
+      output[destinationOffset + n4 + idx] = i1
+      output[destinationOffset + 5 * n4 - 1 - idx] = i1
     }
 
     return output
   }
-}
-
-// Pre-instantiated transforms
-export const mdct64 = new MDCT(MDCT_SIZE_SHORT, 0.5)
-export const mdct256 = new MDCT(MDCT_SIZE_MID, 0.5)
-export const mdct512 = new MDCT(MDCT_SIZE_LONG, 1.0)
-
-export const imdct64 = new IMDCT(MDCT_SIZE_SHORT, MDCT_SIZE_SHORT * 8)
-export const imdct256 = new IMDCT(MDCT_SIZE_MID, MDCT_SIZE_MID * 8)
-export const imdct512 = new IMDCT(MDCT_SIZE_LONG, MDCT_SIZE_LONG * 4)
-
-/**
- * Perform overlap-add operation for MDCT reconstruction
- * @param {Float32Array} prev - Previous block samples
- * @param {Float32Array} curr - Current block samples
- * @param {Float32Array} window - Window function coefficients
- * @returns {Float32Array} Overlap-added output samples
- */
-export function overlapAdd(prev, curr, window) {
-  const size = prev.length
-  const output = new Float32Array(size * 2)
-
-  for (let i = 0; i < size; i++) {
-    const w1 = window[i]
-    const w2 = window[2 * size - 1 - i]
-    const p = prev[i]
-    const c = curr[size - 1 - i]
-
-    output[i] = p * w2 - c * w1
-    output[2 * size - 1 - i] = p * w1 + c * w2
-  }
-
-  return output
-}
-
-/**
- * Reverse spectral order for ATRAC1 mid and high bands.
- *
- * @param {Float32Array} spectrum
- * @param {Object} reversalBuffers
- * @returns {Float32Array}
- */
-export function reverseSpectrum(spectrum, reversalBuffers) {
-  const reversed = reversalBuffers[spectrum.length]
-  for (let i = 0; i < spectrum.length; i++) {
-    reversed[i] = spectrum[spectrum.length - 1 - i]
-  }
-  return reversed
 }

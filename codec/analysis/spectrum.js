@@ -11,13 +11,13 @@ import {
 } from '../core/constants.js'
 import { calculateBandOffset } from '../core/geometry.js'
 import { MDCT_BAND_CONFIGS, WINDOW_SHORT } from '../core/tables.js'
-import {
-  mdct64,
-  mdct256,
-  mdct512,
-  reverseSpectrum,
-} from '../signal/spectrum.js'
+import { MDCT } from '../signal/mdct.js'
+import { reverseSpectrum } from '../signal/order.js'
 import { throwError } from '../utils.js'
+
+const shortMdct = new MDCT(MDCT_SIZE_SHORT, 0.5)
+const middleMdct = new MDCT(MDCT_SIZE_MID, 0.5)
+const longMdct = new MDCT(MDCT_SIZE_LONG, 1)
 
 /**
  * Build the ATRAC1 spectrum from analyzed bands.
@@ -31,7 +31,7 @@ export function transformSpectrum(context) {
     context?.bufferPool ??
     throwError('transformSpectrum: bufferPool is required')
   const overlapBuffers = bufferPool.mdctOverlap
-  const transformFunctions = [mdct256, mdct256, mdct512]
+  const transformFunctions = [middleMdct, middleMdct, longMdct]
 
   /**
    * @param {Float32Array} samples
@@ -113,7 +113,7 @@ export function transformSpectrum(context) {
       applyTailWindowing(blockSamples, overlapBuffer, MDCT_SHORT_BLOCK_SIZE)
       mdctInput.set(blockSamples, MDCT_OVERLAP_SIZE)
 
-      let spectrum = mdct64.transform(mdctInput, bufferPool.mdctBuffers)
+      let spectrum = shortMdct.transform(mdctInput, bufferPool.mdctBuffers)
       if (bandIndex > 0) {
         spectrum = reverseSpectrum(spectrum, bufferPool.reversalBuffers)
       }
