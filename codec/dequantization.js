@@ -8,7 +8,7 @@ import {
   BFU_START_SHORT,
   WORD_LENGTH_BITS,
 } from './core/tables.js'
-import { dequantize as dequantizeCoefficient } from './quantization/spectrum.js'
+import * as spectrumQuantization from './quantization/spectrum.js'
 
 /**
  * Reconstruct the continuous ATRAC1 spectrum.
@@ -40,7 +40,7 @@ export function dequantize() {
         blockModes[band] === 0 ? BFU_START_LONG[bfu] : BFU_START_SHORT[bfu]
 
       if (bitsPerSample > 0) {
-        const dequantized = dequantizeCoefficient(
+        const dequantized = spectrumQuantization.dequantize(
           quantizedCoefficients[bfu],
           scaleFactorIndices[bfu],
           bitsPerSample
