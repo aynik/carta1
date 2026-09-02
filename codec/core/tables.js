@@ -2,7 +2,14 @@
  * Stable ATRAC1 geometry, signal, allocation, and quantization tables.
  */
 
-import { MAX_WORD_LENGTH_INDEX, QMF_TAPS } from './constants.js'
+import {
+  MAX_WORD_LENGTH_INDEX,
+  QMF_ANALYSIS_TERMS,
+  QMF_BANDS,
+  QMF_SYNTHESIS_DELAY_ROWS,
+  QMF_SYNTHESIS_TERMS,
+  QMF_TAPS,
+} from './constants.js'
 
 export const AEA_MAGIC = new Uint8Array([0x00, 0x08, 0x00, 0x00])
 
@@ -69,6 +76,97 @@ export const QMF_ODD = (() => {
   }
   return odd
 })()
+
+/** Sample positions read by each component of the configurable QMF analysis. */
+export const QMF_ANALYSIS_SAMPLE_OFFSETS = (() => {
+  const offsets = new Uint8Array(QMF_BANDS * QMF_ANALYSIS_TERMS)
+  for (let term = 0; term < QMF_ANALYSIS_TERMS; term++) {
+    offsets[term] = QMF_TAPS - 1 - term * QMF_BANDS
+    offsets[QMF_ANALYSIS_TERMS + term] = QMF_TAPS - QMF_BANDS - term * QMF_BANDS
+  }
+  return offsets
+})()
+
+/** Prototype-filter coefficients in component-major QMF analysis order. */
+export const QMF_ANALYSIS_FILTER_COEFFICIENTS = (() => {
+  const coefficients = new Float32Array(QMF_BANDS * QMF_ANALYSIS_TERMS)
+  coefficients.set(QMF_EVEN)
+  coefficients.set(QMF_ODD, QMF_ANALYSIS_TERMS)
+  return coefficients
+})()
+
+/** Dense modulation applied after Carta1 QMF analysis filtering. */
+export const QMF_ANALYSIS_MODULATION_COEFFICIENTS = new Float32Array([
+  1, 1, 1, -1,
+])
+
+/* eslint-disable no-loss-of-precision -- Float32Array applies the intended float32 rounding. */
+
+/** Reference factors used by the optimized sixteen-band modulation path. */
+export const QMF_ANALYSIS_PI_OVER_8_BUTTERFLY_SCALES = new Float32Array([
+  1.8477590084075928, 0.7653668522834778, 1.8477590084075928,
+  0.7653668522834778,
+])
+
+/** Reference half-angle factors used by sixteen-band modulation. */
+export const QMF_ANALYSIS_HALF_BUTTERFLY_SCALES = new Float32Array([
+  0.7071067690849304, 0.2071067839860916, 1.2071068286895752,
+])
+
+/** Reference odd pi/32 cosines used by sixteen-band modulation. */
+export const QMF_ANALYSIS_ODD_PI_OVER_32_COSINES = new Float32Array([
+  1.990369439125061, 1.913880705833435, 1.7638425827026367, 1.5460208654403687,
+  1.2687865495681763, 0.9427934885025024, 0.5805693864822388,
+  0.1960342824459076,
+])
+
+/** Reference odd pi/16 cosines used by sixteen-band modulation. */
+export const QMF_ANALYSIS_ODD_PI_OVER_16_COSINES = new Float32Array([
+  1.9615705013275146, 1.662939190864563, 1.111140489578247, 0.39018064737319946,
+])
+
+/** Reference odd pi/64 cosines used by sixteen-band modulation. */
+export const QMF_ANALYSIS_ODD_PI_OVER_64_COSINES = new Float32Array([
+  1.9975908994674683, 1.9783530235290527, 1.9400625228881836,
+  1.8830881118774414, 1.807978630065918, 1.7154572010040283, 1.606415033340454,
+  1.4819022417068481, 1.3431179523468018, 1.1913986206054688,
+  1.0282055139541626, 0.8551101684570312, 0.6737797260284424,
+  0.48596036434173584, 0.2934609651565552, 0.09813535213470459,
+])
+
+/* eslint-enable no-loss-of-precision */
+
+/** Delay-row offsets read by each sample of configurable QMF synthesis. */
+export const QMF_SYNTHESIS_DELAY_ROW_OFFSETS = (() => {
+  const offsets = new Uint8Array(QMF_BANDS * QMF_SYNTHESIS_TERMS)
+  for (let sample = 0; sample < QMF_BANDS; sample++) {
+    const sampleOffset = sample * QMF_SYNTHESIS_TERMS
+    for (let term = 0; term < QMF_SYNTHESIS_TERMS; term++) {
+      offsets[sampleOffset + term] = QMF_SYNTHESIS_DELAY_ROWS - 1 - term
+    }
+  }
+  return offsets
+})()
+
+/** Delay components read by each sample of configurable QMF synthesis. */
+export const QMF_SYNTHESIS_DELAY_COMPONENTS = (() => {
+  const components = new Uint8Array(QMF_BANDS * QMF_SYNTHESIS_TERMS)
+  components.fill(1, 0, QMF_SYNTHESIS_TERMS)
+  return components
+})()
+
+/** Prototype-filter coefficients in output-sample-major QMF synthesis order. */
+export const QMF_SYNTHESIS_FILTER_COEFFICIENTS = (() => {
+  const coefficients = new Float64Array(QMF_BANDS * QMF_SYNTHESIS_TERMS)
+  coefficients.set(QMF_ODD)
+  coefficients.set(QMF_EVEN, QMF_SYNTHESIS_TERMS)
+  return coefficients
+})()
+
+/** Dense modulation applied before Carta1 QMF synthesis filtering. */
+export const QMF_SYNTHESIS_MODULATION_COEFFICIENTS = new Float64Array([
+  0.5, 0.5, 0.5, -0.5,
+])
 
 export const MDCT_BAND_CONFIGS = [
   { size: 128, windowStart: 48 },

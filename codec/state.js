@@ -2,18 +2,35 @@
  * Carta1 stream state and reusable scratch.
  */
 
-import { QMF_DELAY, QMF_HIGH_BAND_DELAY } from './core/constants.js'
+import {
+  QMF_ANALYSIS_DELAY_SAMPLES,
+  QMF_BANDS,
+  QMF_HIGH_BAND_DELAY,
+  QMF_SYNTHESIS_DELAY_SAMPLES,
+} from './core/constants.js'
+
+/** Persistent delay state for one two-band QMF synthesis stage. */
+class QmfSynthesisState {
+  constructor() {
+    this.delay = new Float32Array(QMF_SYNTHESIS_DELAY_SAMPLES)
+    this.delayRow = 0
+  }
+}
 
 /**
  * Values with meaning across chronological frames.
  */
 class History {
   constructor() {
-    this.qmfDelays = {
-      lowBand: new Float32Array(QMF_DELAY),
-      midBand: new Float32Array(QMF_DELAY),
-      highBand: new Float32Array(QMF_HIGH_BAND_DELAY),
+    this.qmfAnalysisDelays = {
+      lowBand: new Float32Array(QMF_ANALYSIS_DELAY_SAMPLES),
+      midBand: new Float32Array(QMF_ANALYSIS_DELAY_SAMPLES),
     }
+    this.qmfSynthesisStates = {
+      lowBand: new QmfSynthesisState(),
+      midBand: new QmfSynthesisState(),
+    }
+    this.qmfHighBandDelay = new Float32Array(QMF_HIGH_BAND_DELAY)
 
     this.transientDetection = [
       new Float32Array(64),
@@ -47,16 +64,19 @@ class Scratch {
       512: new Float32Array(512),
     }
 
-    this.qmfWorkBuffers = {
-      delay: {
-        128: new Float32Array(QMF_DELAY + 128),
-        256: new Float32Array(QMF_DELAY + 256),
-        512: new Float32Array(QMF_DELAY + 512),
+    this.qmfScratch = {
+      analysisWindows: {
+        128: new Float32Array(QMF_ANALYSIS_DELAY_SAMPLES + 128),
+        256: new Float32Array(QMF_ANALYSIS_DELAY_SAMPLES + 256),
+        512: new Float32Array(QMF_ANALYSIS_DELAY_SAMPLES + 512),
       },
-      highBandDelay: {
+      highBandWindows: {
         128: new Float32Array(QMF_HIGH_BAND_DELAY + 128),
         256: new Float32Array(QMF_HIGH_BAND_DELAY + 256),
       },
+      polyphase: new Float32Array(QMF_BANDS),
+      extended: new Float64Array(QMF_BANDS),
+      bands: new Float32Array(QMF_BANDS),
     }
 
     this.mdctBuffers = {

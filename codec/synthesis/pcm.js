@@ -2,8 +2,28 @@
  * Carta1 PCM synthesis application.
  */
 
-import { synthesizeQmfPair } from '../signal/bands.js'
+import { synthesizeQmf } from '../signal/qmf.js'
 import { throwError } from '../utils.js'
+
+/**
+ * Join two subband rows through a configurable QMF synthesis stage.
+ *
+ * @param {Float32Array[]} bands
+ * @param {object} state
+ * @param {object} scratch
+ * @returns {Float32Array}
+ */
+function synthesizePair(bands, state, scratch) {
+  const output = new Float32Array(bands[0].length * 2)
+  state.delayRow = synthesizeQmf(
+    bands,
+    state.delay,
+    state.delayRow,
+    output,
+    scratch
+  )
+  return output
+}
 
 /**
  * Synthesize full-spectrum PCM from frequency bands.
@@ -15,36 +35,30 @@ import { throwError } from '../utils.js'
 export function synthesizePcm(context) {
   const bufferPool =
     context?.bufferPool ?? throwError('synthesizePcm: bufferPool is required')
-  const delays = bufferPool.qmfDelays
+  const states = bufferPool.qmfSynthesisStates
+  const scratch = bufferPool.qmfScratch
 
   /**
    * @param {Array<Float32Array>} bands
    * @returns {Float32Array}
    */
   return (bands) => {
-    const delayedHigh = bufferPool.qmfWorkBuffers.highBandDelay[bands[2].length]
-    delayedHigh.set(delays.highBand)
-    delayedHigh.set(bands[2], delays.highBand.length)
+    const delayedHigh = scratch.highBandWindows[bands[2].length]
+    delayedHigh.set(bufferPool.qmfHighBandDelay)
+    delayedHigh.set(bands[2], bufferPool.qmfHighBandDelay.length)
 
     const highBand = delayedHigh.slice(0, bands[0].length * 2)
-    delays.highBand = delayedHigh.slice(bands[0].length * 2)
-
-    const stage2 = synthesizeQmfPair(
-      bands[0],
-      bands[1],
-      delays.midBand,
-      bufferPool.qmfWorkBuffers
+    bufferPool.qmfHighBandDelay.set(
+      delayedHigh.subarray(
+        bands[0].length * 2,
+        bands[0].length * 2 + bufferPool.qmfHighBandDelay.length
+      )
     )
-    delays.midBand = stage2.newDelay
 
-    const stage1 = synthesizeQmfPair(
-      stage2.output,
-      highBand,
-      delays.lowBand,
-      bufferPool.qmfWorkBuffers
-    )
-    delays.lowBand = stage1.newDelay
+    const stage2 = synthesizePair([bands[0], bands[1]], states.midBand, scratch)
 
-    return stage1.output
+    const stage1 = synthesizePair([stage2, highBand], states.lowBand, scratch)
+
+    return stage1
   }
 }
