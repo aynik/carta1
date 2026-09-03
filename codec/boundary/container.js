@@ -14,6 +14,29 @@ import {
 } from '../core/constants.js'
 import { AEA_MAGIC } from '../core/tables.js'
 
+const UTF8_ENCODER = new TextEncoder()
+const UTF8_DECODER = new TextDecoder()
+
+/**
+ * Validate a title for the fixed-width AEA title field.
+ *
+ * @param {string} title
+ * @returns {{valid: boolean, error?: string}}
+ */
+export function validateAeaTitle(title) {
+  const byteLength = UTF8_ENCODER.encode(title).length
+  const maxByteLength = AEA_TITLE_SIZE - 1
+
+  if (byteLength > maxByteLength) {
+    return {
+      valid: false,
+      error: `Title is too long (${byteLength} UTF-8 bytes). Maximum allowed: ${maxByteLength} bytes`,
+    }
+  }
+
+  return { valid: true }
+}
+
 /**
  * AEA file-format handler.
  */
@@ -39,10 +62,9 @@ export class AeaFile {
     const view = new DataView(header.buffer)
     header.set(AEA_MAGIC, 0)
 
-    const titleBytes = new TextEncoder().encode(title)
-    header.set(
-      titleBytes.subarray(0, Math.min(titleBytes.length, AEA_TITLE_SIZE - 1)),
-      AEA_TITLE_OFFSET
+    UTF8_ENCODER.encodeInto(
+      title,
+      header.subarray(AEA_TITLE_OFFSET, AEA_TITLE_OFFSET + AEA_TITLE_SIZE - 1)
     )
     view.setUint32(AEA_FRAME_COUNT_OFFSET, frameCount, true)
     header[AEA_CHANNEL_COUNT_OFFSET] = channelCount
@@ -81,7 +103,7 @@ export class AeaFile {
     const titleEnd = header.indexOf(0, AEA_TITLE_OFFSET)
     const titleLength =
       titleEnd === -1 ? AEA_TITLE_SIZE : titleEnd - AEA_TITLE_OFFSET
-    const title = new TextDecoder().decode(
+    const title = UTF8_DECODER.decode(
       header.subarray(AEA_TITLE_OFFSET, AEA_TITLE_OFFSET + titleLength)
     )
 

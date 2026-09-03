@@ -58,7 +58,7 @@ signed 16-bit PCM WAVE output.
 | `-j, --json`          | Write AEA metadata and frame structure as JSON.      |
 | `-q, --quiet`         | Suppress normal output and progress.                 |
 | `-f, --force`         | Overwrite an existing output file.                   |
-| `-t, --title <title>` | Set the AEA title while encoding.                    |
+| `-t, --title <title>` | Set a UTF-8 AEA title (up to 255 encoded bytes).     |
 | `-b, --bias <value>`  | Set the bit-allocation bias; defaults to `1.0`.      |
 | `-m, --modes <modes>` | Fix low, mid, and high block modes, such as `0,0,0`. |
 | `-V, --version`       | Print the Carta1 version.                            |

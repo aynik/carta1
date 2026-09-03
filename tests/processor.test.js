@@ -143,11 +143,11 @@ describe('AudioProcessor', () => {
         channelCount: 1,
       })
       const blob = await AudioProcessor.createAeaBlob(encodedStream, {
-        title: 'test',
+        title: '東京 – Café 🎵',
       })
       const { info, frameData } = await AudioProcessor.parseAeaBlob(blob)
 
-      expect(info.title).toBe('test')
+      expect(info.title).toBe('東京 – Café 🎵')
       expect(info.frameCount).toBe(3)
       expect(info.sampleCount).toBe(SAMPLES_PER_FRAME * 2)
       expect(frameData.length).toBe(3)

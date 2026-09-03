@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { AeaFile } from '../codec/boundary/container'
+import { AeaFile, validateAeaTitle } from '../codec/boundary/container'
 import { deserializeFrame, serializeFrame } from '../codec/syntax/frame'
 import { SOUND_UNIT_SIZE, AEA_HEADER_SIZE } from '../codec/core/constants'
 import { AEA_MAGIC } from '../codec/core/tables'
@@ -69,6 +69,29 @@ describe('Serialization', () => {
       expect(parsed.title).toBe('Another Test')
       expect(parsed.frameCount).toBe(456)
       expect(parsed.channelCount).toBe(1)
+    })
+
+    it('should round-trip UTF-8 titles', () => {
+      const title = '東京 – Café 🎵'
+      const header = AeaFile.createHeader(title, 1, 2)
+
+      expect(AeaFile.parseHeader(header).title).toBe(title)
+    })
+
+    it('should validate title length in UTF-8 bytes', () => {
+      expect(validateAeaTitle(`a${'é'.repeat(127)}`)).toEqual({ valid: true })
+      expect(validateAeaTitle('é'.repeat(128))).toEqual({
+        valid: false,
+        error:
+          'Title is too long (256 UTF-8 bytes). Maximum allowed: 255 bytes',
+      })
+    })
+
+    it('should not split a UTF-8 sequence when truncating a title', () => {
+      const asciiPrefix = 'a'.repeat(254)
+      const header = AeaFile.createHeader(`${asciiPrefix}é`, 1, 1)
+
+      expect(AeaFile.parseHeader(header).title).toBe(asciiPrefix)
     })
 
     it('should validate the magic number when parsing', () => {

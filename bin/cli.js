@@ -21,14 +21,13 @@ import wav from 'wav'
 
 import { AudioProcessor } from '../codec/boundary/processor.js'
 import { AeaReader } from '../codec/boundary/reader.js'
-import { AeaFile } from '../codec/boundary/container.js'
+import { AeaFile, validateAeaTitle } from '../codec/boundary/container.js'
 import { deserializeFrame } from '../codec/syntax/frame.js'
 import { EncoderOptions } from '../codec/core/options.js'
 import {
   SAMPLE_RATE,
   SAMPLES_PER_FRAME,
   BITRATE_PER_CHANNEL,
-  AEA_TITLE_SIZE,
   AEA_HEADER_SIZE,
   SOUND_UNIT_SIZE,
 } from '../codec/core/constants.js'
@@ -48,7 +47,7 @@ function formatTime(seconds) {
 }
 
 /**
- * Validate AEA title for length and ASCII encoding
+ * Validate an AEA title for its fixed-width UTF-8 field.
  *
  * @param {string} title - Title to validate
  * @returns {Object} Validation result
@@ -56,31 +55,7 @@ function formatTime(seconds) {
  * @returns {string} [returns.error] - Error message if invalid
  */
 function validateTitle(title) {
-  if (!title) {
-    return { valid: true }
-  }
-
-  // Check ASCII encoding
-  for (let i = 0; i < title.length; i++) {
-    const charCode = title.charCodeAt(i)
-    if (charCode > 127) {
-      return {
-        valid: false,
-        error: `Title contains non-ASCII character at position ${i}: "${title[i]}"`,
-      }
-    }
-  }
-
-  // Check length (AEA_TITLE_SIZE includes null terminator)
-  const maxLength = AEA_TITLE_SIZE - 1
-  if (title.length > maxLength) {
-    return {
-      valid: false,
-      error: `Title is too long (${title.length} chars). Maximum allowed: ${maxLength} characters`,
-    }
-  }
-
-  return { valid: true }
+  return validateAeaTitle(title)
 }
 
 /**
@@ -703,7 +678,7 @@ async function main() {
     .option('-f, --force', 'Overwrite output file if it exists')
     .option(
       '-t, --title <title>',
-      'Custom title for AEA file metadata (encoding only)'
+      'Custom UTF-8 title for AEA file metadata (encoding only)'
     )
     .option(
       '-b, --bias <value>',
