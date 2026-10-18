@@ -42,14 +42,30 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Read release version
+        id: release
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          files: |
+            dist/carta1.wme
+            dist/carta1.min.js
+            dist/carta1.min.js.map
+            dist/carta1-worker.min.js
+            dist/carta1-worker.min.js.map
+            dist/carta1-worker-interface.min.js
+            dist/carta1-worker-interface.min.js.map
+          fail_on_unmatched_files: true
           body: |
             Changes in this release:
+            - Experimental ATRAC1 WME for SP stereo/mono host development. Current WMD API v1 does not support software ATRAC1; see README for the proposed SPS/SPM contract.
             - Published to npm: https://www.npmjs.com/package/carta1
 
-            CDN URLs:
-            - https://unpkg.com/carta1@latest/dist/carta1.min.js
-            - https://unpkg.com/carta1@latest/dist/carta1-worker.min.js
-            - https://unpkg.com/carta1@latest/dist/carta1-worker-interface.min.js
+            Release assets include carta1.wme, the three browser JS bundles, and source maps.
+
+            CDN URLs (this version):
+            - https://unpkg.com/carta1@${{ steps.release.outputs.version }}/dist/carta1.min.js
+            - https://unpkg.com/carta1@${{ steps.release.outputs.version }}/dist/carta1-worker.min.js
+            - https://unpkg.com/carta1@${{ steps.release.outputs.version }}/dist/carta1-worker-interface.min.js
