@@ -44,6 +44,9 @@ function calculateSpectralFeatures(currentCoeffs, prevCoeffs) {
 /**
  * Calculate normalized spectral flux (positive spectral differences)
  * High values indicate sudden onset of new spectral components
+ * @param {Float32Array} currentCoeffs - Current frame coefficients
+ * @param {Float32Array} prevCoeffs - Previous frame coefficients
+ * @returns {number} Spectral flux normalized by current frame energy
  */
 function calculateSpectralFlux(currentCoeffs, prevCoeffs) {
   let flux = 0

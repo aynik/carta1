@@ -298,7 +298,8 @@ class WavReader {
   /**
    * Async iterator for streaming WAV file frames.
    *
-   * Reads one bounded PCM frame at a time and zero-pads a final partial frame.
+   * Reads bounded PCM batches, yielding one frame at a time and zero-padding
+   * a final partial frame.
    * Channel state belongs to the downstream encoder closures.
    *
    * @param {number} [frameSize=SAMPLES_PER_FRAME] - Samples per frame
@@ -307,10 +308,11 @@ class WavReader {
   async *[Symbol.asyncIterator](frameSize = SAMPLES_PER_FRAME) {
     const handle = await fs.promises.open(this.filePath, 'r')
     const frameBytes = (frameSize * this.channels * this.bitDepth) / 8
+    const batchBytes = frameBytes * 32
     try {
-      for (let offset = 0; offset < this.dataSize; offset += frameBytes) {
-        const bytes = Buffer.alloc(frameBytes)
-        const count = Math.min(frameBytes, this.dataSize - offset)
+      for (let offset = 0; offset < this.dataSize; offset += batchBytes) {
+        const bytes = Buffer.alloc(batchBytes)
+        const count = Math.min(batchBytes, this.dataSize - offset)
         let read = 0
         while (read < count) {
           const result = await handle.read(
@@ -322,7 +324,16 @@ class WavReader {
           if (result.bytesRead === 0) throw new Error('Truncated WAV input')
           read += result.bytesRead
         }
-        yield this._processFrameBuffer(bytes, frameSize)
+        for (
+          let frameOffset = 0;
+          frameOffset < count;
+          frameOffset += frameBytes
+        ) {
+          yield this._processFrameBuffer(
+            bytes.subarray(frameOffset, frameOffset + frameBytes),
+            frameSize
+          )
+        }
       }
     } finally {
       await handle.close()
@@ -418,6 +429,37 @@ async function writeBytes(handle, bytes, position = null) {
   }
 }
 
+/** Buffer frame writes without retaining the encoded or decoded stream. */
+class BufferedWriter {
+  /** @param {import('node:fs/promises').FileHandle} handle - Open output file */
+  constructor(handle) {
+    this.handle = handle
+    this.buffer = Buffer.alloc(65536)
+    this.used = 0
+  }
+
+  /**
+   * @param {Uint8Array} bytes - Next frame's bytes
+   * @returns {Promise<void>}
+   */
+  async write(bytes) {
+    if (this.used + bytes.length > this.buffer.length) await this.flush()
+    if (bytes.length >= this.buffer.length) {
+      await writeBytes(this.handle, bytes)
+      return
+    }
+    this.buffer.set(bytes, this.used)
+    this.used += bytes.length
+  }
+
+  /** @returns {Promise<void>} Resolves when all pending bytes are written. */
+  async flush() {
+    if (this.used === 0) return
+    await writeBytes(this.handle, this.buffer.subarray(0, this.used))
+    this.used = 0
+  }
+}
+
 /**
  * Encode WAV file to ATRAC1 AEA format
  *
@@ -498,6 +540,7 @@ async function encodeFile(inputFile, outputFile, options) {
       outputFile,
       options.force ? 'w' : 'wx'
     )
+    const writer = new BufferedWriter(output)
     let count = 0
     try {
       await writeBytes(
@@ -506,9 +549,10 @@ async function encodeFile(inputFile, outputFile, options) {
       )
       for await (const frame of encodedFrames) {
         const bytes = serializeFrame(frame)
-        await writeBytes(output, bytes)
+        await writer.write(bytes)
         count++
       }
+      await writer.flush()
       const header = AeaFile.createHeader(
         title,
         count,
@@ -574,6 +618,7 @@ async function decodeFile(inputFile, outputFile, options) {
       outputFile,
       options.force ? 'w' : 'wx'
     )
+    const writer = new BufferedWriter(output)
     let sampleCount = 0
     try {
       await writeBytes(
@@ -586,9 +631,10 @@ async function decodeFile(inputFile, outputFile, options) {
       )
       for await (const frame of decodedFrames) {
         const channels = metadata.channelCount === 1 ? [frame] : frame
-        await writeBytes(output, interleavePcm16(channels))
+        await writer.write(interleavePcm16(channels))
         sampleCount += channels[0].length
       }
+      await writer.flush()
       const header = createPcmWaveHeader({
         sampleCount,
         sampleRate: SAMPLE_RATE,

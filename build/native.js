@@ -648,6 +648,19 @@ function maximumNativeNumber(left, right) {
   return result
 }
 
+/** Clear a complete typed-array view to positive zero. The return is unused. */
+function clearNativeArray(array, kind) {
+  const pointer = Porffor.IR.ptr(array)
+  Porffor.c`
+    u32 view = (u32)pointer.val;
+    u32 element = (u32)kind;
+    size_t width = element == 1 ? 8 : element == 3 ? 1 : element == 4 ? 2 : 4;
+    u8 *data = MEM + *(u32*)(MEM + view + 4) + 4;
+    memset(data, 0, (size_t)*(i32*)(MEM + view) * width);
+  `
+  return 0
+}
+
 /** Preserve UTF-16 dump strings through Porffor's byte-only JSON serializer. */
 function stringifyNativeDump(value, space = 2) {
   return JSON.stringify(
@@ -677,6 +690,7 @@ const nativeIntrinsics = [
   powerNativeTwo,
   minimumNativeNumber,
   maximumNativeNumber,
+  clearNativeArray,
 ]
 const nativeHelpers = [...nativeIntrinsics, stringifyNativeDump]
 
@@ -690,7 +704,11 @@ function nativeNumericSource(definition) {
         visitor: {
           Function(p) {
             for (const parameter of p.node.params.slice(
-              [readNativeNumber, writeNativeNumber].includes(definition) ? 1 : 0
+              [readNativeNumber, writeNativeNumber, clearNativeArray].includes(
+                definition
+              )
+                ? 1
+                : 0
             )) {
               parameter.typeAnnotation = t.tsTypeAnnotation(
                 t.tsTypeReference(t.identifier('f64'))
@@ -761,7 +779,9 @@ function integerTable(node, scope) {
 }
 
 /**
- * QMF geometry and heap guards bound their indices. Native FFT callers use
+ * QMF geometry and heap guards bound their indices. Allocation candidates fit
+ * their frame-local arrays, with scale indices clamped to the 64-entry table.
+ * Native FFT callers use
  * paired power-of-two scratch rows from BufferPool or transient detection.
  * MDCT callers use fixed transform rows, with allocated outputs and offset zero.
  */
@@ -778,7 +798,8 @@ function nativeElementKind(array, p, relative) {
   const owner = ownerNode?.id?.name || ownerNode?.key?.name
   return (relative === 'codec/signal/qmf.js' &&
     ['analyzeQmf', 'synthesizeQmf'].includes(owner)) ||
-    (relative === 'codec/allocation/solve.js' && owner === 'siftDown') ||
+    (relative === 'codec/allocation/solve.js' &&
+      ['siftDown', 'distributeBits', 'measureDistortion'].includes(owner)) ||
     (relative === 'codec/signal/fft.js' && owner === 'transform') ||
     (relative === 'codec/signal/mdct.js' && owner === 'transform')
     ? kind + 8
@@ -1019,6 +1040,22 @@ function numericShape(node, scope, visited = new Set()) {
   if (t.isCallExpression(node) && t.isMemberExpression(node.callee)) {
     if (t.isIdentifier(node.callee.object, { name: 'Math' })) {
       if (
+        ['floor', 'ceil', 'trunc'].includes(node.callee.property.name) &&
+        node.arguments.length === 1
+      ) {
+        const argument = node.arguments[0]
+        // Rounding a bounded integer ratio with a positive divisor stays i32.
+        if (
+          numericShape(argument, scope, new Set(visited)) === 'integer' ||
+          (t.isBinaryExpression(argument, { operator: '/' }) &&
+            numericShape(argument.left, scope, new Set(visited)) ===
+              'integer' &&
+            t.isNumericLiteral(argument.right) &&
+            argument.right.value >= 1)
+        )
+          return 'integer'
+      }
+      if (
         ['min', 'max'].includes(node.callee.property.name) &&
         node.arguments.every(
           (argument) =>
@@ -1046,6 +1083,8 @@ function numericShape(node, scope, visited = new Set()) {
   if (t.isMemberExpression(node) || t.isOptionalMemberExpression(node)) {
     if (!node.computed && t.isIdentifier(node.property)) {
       if (integerFields.has(node.property.name)) return 'integer'
+      if (node.property.name === 'length' && arrayType(node.object, scope))
+        return 'integer'
       if (
         node.property.name === 'length' ||
         numericFields.has(node.property.name)
@@ -1619,6 +1658,29 @@ function transformForNative(source, relative) {
             },
           },
           CallExpression(p) {
+            if (
+              t.isMemberExpression(p.node.callee) &&
+              t.isIdentifier(p.node.callee.property, { name: 'fill' }) &&
+              p.node.arguments.length === 1 &&
+              t.isNumericLiteral(p.node.arguments[0], { value: 0 }) &&
+              p.parentPath.isExpressionStatement()
+            ) {
+              const kind = nativeElementKind(
+                arrayType(p.node.callee.object, p.scope),
+                p,
+                relative
+              )
+              if (kind !== -1) {
+                numericLoads = true
+                p.replaceWith(
+                  t.callExpression(t.identifier('clearNativeArray'), [
+                    p.node.callee.object,
+                    t.numericLiteral(kind & 7),
+                  ])
+                )
+                return
+              }
+            }
             if (
               relative === 'bin/cli.js' &&
               t.isMemberExpression(p.node.callee) &&
