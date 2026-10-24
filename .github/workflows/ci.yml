@@ -30,3 +30,22 @@ jobs:
 
       - name: Run contributor gate
         run: npm run check
+
+      - name: Verify npm package excludes native tooling and releases
+        run: |
+          node --input-type=module <<'JS'
+          import { execFileSync } from 'node:child_process'
+          const [pack] = JSON.parse(execFileSync('npm', [
+            'pack', '--dry-run', '--ignore-scripts', '--json'
+          ], { encoding: 'utf8' }))
+          for (const { path } of pack.files) {
+            if (path.startsWith('build/') || path.includes('native') || /\.(tar\.gz|sha256|exe)$/.test(path)) {
+              throw new Error('Native file entered npm package: ' + path)
+            }
+          }
+          JS
+
+  native:
+    if: github.ref_type != 'tag'
+    needs: check
+    uses: ./.github/workflows/native.yml

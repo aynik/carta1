@@ -34,7 +34,7 @@ export function packBits(buffer, bitPosition, value, bitCount) {
   let byteIndex = Math.floor(bitPosition / 8)
   let bitOffset = bitPosition % 8
 
-  const unsignedValue = Number(value) >>> 0
+  const packedValue = Number(value) | 0
 
   let bitsWritten = 0
   while (bitsWritten < bitCount && byteIndex < buffer.length) {
@@ -42,7 +42,7 @@ export function packBits(buffer, bitPosition, value, bitCount) {
     const bitsToWrite = Math.min(bitCount - bitsWritten, bitsAvailable)
 
     const shift = bitCount - bitsWritten - bitsToWrite
-    const valueBits = (unsignedValue >>> shift) & (2 ** bitsToWrite - 1)
+    const valueBits = (packedValue >>> shift) & (2 ** bitsToWrite - 1)
 
     const mask = (2 ** bitsToWrite - 1) << (bitsAvailable - bitsToWrite)
     buffer[byteIndex] =

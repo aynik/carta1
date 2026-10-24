@@ -24,7 +24,7 @@ const longImdct = new IMDCT(MDCT_SIZE_LONG, MDCT_SIZE_LONG * 4)
  *
  * @param {Float32Array} previous Previous block samples.
  * @param {Float32Array} current Current block samples.
- * @param {Float32Array} window Window coefficients.
+ * @param {Float32Array|Float64Array} window Window coefficients.
  * @returns {Float32Array} Overlap-added samples.
  */
 export function overlapAdd(previous, current, window) {

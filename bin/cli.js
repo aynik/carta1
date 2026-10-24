@@ -16,13 +16,12 @@ import { program } from 'commander'
 import fs from 'fs'
 import path from 'path'
 import { performance } from 'perf_hooks'
-import cliProgress from 'cli-progress'
-import wav from 'wav'
 
 import { AudioProcessor } from '../codec/boundary/processor.js'
 import { AeaReader } from '../codec/boundary/reader.js'
 import { AeaFile, validateAeaTitle } from '../codec/boundary/container.js'
-import { deserializeFrame } from '../codec/syntax/frame.js'
+import { createPcmWaveHeader, interleavePcm16 } from '../codec/boundary/pcm.js'
+import { deserializeFrame, serializeFrame } from '../codec/syntax/frame.js'
 import { EncoderOptions } from '../codec/core/options.js'
 import {
   SAMPLE_RATE,
@@ -31,6 +30,8 @@ import {
   AEA_HEADER_SIZE,
   SOUND_UNIT_SIZE,
 } from '../codec/core/constants.js'
+
+const LITTLE_ENDIAN_PCM = new Uint8Array(new Uint16Array([1]).buffer)[0] === 1
 
 /**
  * Format duration in seconds to MM:SS format
@@ -121,7 +122,7 @@ function validateModes(modes) {
  */
 class ProgressTracker {
   /**
-   * Create a progress tracker
+   * Create a progress tracker.
    *
    * @param {number} frameCount - Total number of frames to process
    * @param {string} operation - Operation name ('Encoding' or 'Decoding')
@@ -129,53 +130,77 @@ class ProgressTracker {
    */
   constructor(frameCount, operation, quiet = false) {
     this.totalFrames = frameCount
-    this.quiet = quiet
+    this.operation = operation
+    this.enabled = !quiet && process.stderr.isTTY
     this.startTime = performance.now()
+    this.lastRender = -Infinity
     this.frameCount = 0
-
-    if (!quiet) {
-      this.bar = new cliProgress.SingleBar(
-        {
-          autopadding: true,
-          format: `${operation} |{bar}| {percentage}% | {value}/{total} frames | {elapsed}/{remaining} | RT: {speed}x`,
-        },
-        cliProgress.Presets.rect
-      )
-      this.bar.start(frameCount, 0)
-    }
+    this.render()
   }
 
   /**
-   * Update progress with a new processed frame
+   * Update progress with a new processed frame.
    *
    * @param {number} sampleRate - Audio sample rate for RT speed calculation
    */
   update(sampleRate) {
     this.frameCount++
-    if (!this.quiet) {
-      const elapsed = (performance.now() - this.startTime) / 1000
-      const audioProcessed = (this.frameCount * SAMPLES_PER_FRAME) / sampleRate
-      const rtSpeed = elapsed > 0 ? audioProcessed / elapsed : 0
-      const progress = this.frameCount / this.totalFrames
-      const estimatedTotal = progress > 0 ? elapsed / progress : 0
-      const remaining = Math.max(0, estimatedTotal - elapsed)
-
-      this.bar.update(this.frameCount, {
-        speed: rtSpeed.toFixed(1),
-        elapsed: formatTime(elapsed),
-        remaining: formatTime(remaining),
-      })
-    }
+    this.sampleRate = sampleRate
+    this.render()
   }
 
   /**
-   * Stop the progress bar display
+   * Render a throttled progress update on an interactive terminal.
+   *
+   * @param {boolean} [force=false] - Render even inside the throttle interval
    */
-  stop() {
-    if (!this.quiet && this.bar) {
-      this.bar.stop()
-    }
+  render(force = false) {
+    if (!this.enabled) return
+    const now = performance.now()
+    if (!force && now - this.lastRender < 100) return
+    this.lastRender = now
+    const elapsed = (now - this.startTime) / 1000
+    const fraction =
+      this.totalFrames > 0 ? Math.min(1, this.frameCount / this.totalFrames) : 1
+    const filled = Math.floor(fraction * 24)
+    const remaining = fraction > 0 ? elapsed * (1 / fraction - 1) : 0
+    const speed =
+      elapsed > 0
+        ? (this.frameCount * SAMPLES_PER_FRAME) /
+          (this.sampleRate || SAMPLE_RATE) /
+          elapsed
+        : 0
+    process.stderr.write(
+      `\r\x1b[2K${this.operation} |${'█'.repeat(filled)}${'░'.repeat(24 - filled)}| ${Math.floor(fraction * 100)}% | ${this.frameCount}/${this.totalFrames} frames | ${formatTime(elapsed)}/${formatTime(remaining)} | RT: ${speed.toFixed(1)}x`
+    )
   }
+
+  /** Stop the progress display after rendering the final frame count. */
+  stop() {
+    this.render(true)
+    if (this.enabled) process.stderr.write('\n')
+  }
+}
+
+/**
+ * Convert PCM sample to normalized float32 value
+ *
+ * @private
+ * @param {Buffer} buffer - PCM data buffer
+ * @param {number} offset - Byte offset to sample
+ * @param {number} bitDepth - PCM sample width in bits
+ * @returns {number} Normalized float value [-1.0, 1.0]
+ */
+function readPcmSample(buffer, offset, bitDepth) {
+  if (bitDepth === 16) return buffer.readInt16LE(offset) / 32768.0
+  if (bitDepth === 24) {
+    let s =
+      buffer[offset] | (buffer[offset + 1] << 8) | (buffer[offset + 2] << 16)
+    if (s > 0x7fffff) s -= 0x1000000
+    return s / 8388608.0
+  }
+  if (bitDepth === 32) return buffer.readInt32LE(offset) / 2147483648.0
+  return 0
 }
 
 /**
@@ -214,121 +239,93 @@ class WavReader {
    * @throws {Error} If file cannot be read or has invalid format
    */
   async loadMetadata() {
-    const stream = fs.createReadStream(this.filePath)
-    const reader = new wav.Reader()
-    stream.pipe(reader)
-
-    return new Promise((resolve, reject) => {
-      reader.on('format', (format) => {
-        this.channels = format.channels
-        this.sampleRate = format.sampleRate
-        this.bitDepth = format.bitDepth
-
-        const fileStats = fs.statSync(this.filePath)
-        const wavHeaderSize = 44
-        const dataSize = fileStats.size - wavHeaderSize
-        const bytesPerSample = this.bitDepth / 8
-
-        if (this.channels > 0 && bytesPerSample > 0) {
-          const totalChannelSamples = dataSize / bytesPerSample
-          this.totalSamples = Math.floor(totalChannelSamples / this.channels)
-          this.duration = this.totalSamples / this.sampleRate
+    const handle = await fs.promises.open(this.filePath, 'r')
+    try {
+      const header = Buffer.alloc(12)
+      await handle.read(header, 0, 12, 0)
+      if (
+        header.toString('ascii', 0, 4) !== 'RIFF' ||
+        header.toString('ascii', 8, 12) !== 'WAVE'
+      )
+        throw new Error('Invalid RIFF/WAVE input')
+      const size = (await handle.stat()).size
+      let format = false
+      let data = false
+      for (let offset = 12; offset + 8 <= size;) {
+        const chunk = Buffer.alloc(8)
+        await handle.read(chunk, 0, 8, offset)
+        const length = chunk.readUInt32LE(4)
+        if (offset + 8 + length > size) throw new Error('Truncated WAV chunk')
+        const name = chunk.toString('ascii', 0, 4)
+        if (name === 'fmt ') {
+          if (length < 16) throw new Error('Invalid WAV format')
+          const bytes = Buffer.alloc(16)
+          await handle.read(bytes, 0, 16, offset + 8)
+          if (bytes.readUInt16LE(0) !== 1)
+            throw new Error('Expected integer PCM WAV')
+          this.channels = bytes.readUInt16LE(2)
+          this.sampleRate = bytes.readUInt32LE(4)
+          this.bitDepth = bytes.readUInt16LE(14)
+          format = true
+        } else if (name === 'data') {
+          this.dataOffset = offset + 8
+          this.dataSize = length
+          data = true
         }
-
-        if (this.sampleRate !== SAMPLE_RATE) {
-          console.log(
-            `Warning: Input sample rate ${this.sampleRate}Hz, expected ${SAMPLE_RATE}Hz`
-          )
-        }
-
-        stream.destroy()
-        resolve()
-      })
-      reader.on('error', reject)
-      stream.on('error', reject)
-    })
+        if (format && data) break
+        offset += 8 + length + (length & 1)
+      }
+      if (
+        !format ||
+        !data ||
+        ![16, 24, 32].includes(this.bitDepth) ||
+        ![1, 2].includes(this.channels)
+      )
+        throw new Error('Expected mono/stereo 16/24/32-bit PCM WAV')
+      const stride = (this.channels * this.bitDepth) / 8
+      if (this.dataSize % stride !== 0) throw new Error('Incomplete WAV sample')
+      this.totalSamples = this.dataSize / stride
+      this.duration = this.totalSamples / this.sampleRate
+      if (this.sampleRate !== SAMPLE_RATE)
+        console.log(
+          `Warning: Input sample rate ${this.sampleRate}Hz, expected ${SAMPLE_RATE}Hz`
+        )
+    } finally {
+      await handle.close()
+    }
   }
 
   /**
-   * Async iterator for streaming WAV file frames
+   * Async iterator for streaming WAV file frames.
+   *
+   * Reads one bounded PCM frame at a time and zero-pads a final partial frame.
+   * Channel state belongs to the downstream encoder closures.
    *
    * @param {number} [frameSize=SAMPLES_PER_FRAME] - Samples per frame
-   * @yields {Float32Array|Array<Float32Array>} Audio frame data
-   *   - Mono: Float32Array of samples
-   *   - Stereo: [left, right] Float32Arrays
+   * @yields {Float32Array|Array<Float32Array>} Mono samples or stereo channels
    */
   async *[Symbol.asyncIterator](frameSize = SAMPLES_PER_FRAME) {
-    const fileStream = fs.createReadStream(this.filePath)
-    const wavReader = new wav.Reader()
-    fileStream.pipe(wavReader)
-
-    let pcmQueue = []
-    let streamEnded = false
-    let streamError = null
-    let resolveDataPromise = null
-
-    wavReader.on('data', (chunk) => {
-      pcmQueue.push(chunk)
-      if (resolveDataPromise) {
-        resolveDataPromise()
-        resolveDataPromise = null
-      }
-    })
-
-    wavReader.on('end', () => {
-      streamEnded = true
-      if (resolveDataPromise) {
-        resolveDataPromise()
-        resolveDataPromise = null
-      }
-    })
-
-    wavReader.on('error', (err) => {
-      streamError = err
-      if (resolveDataPromise) {
-        resolveDataPromise()
-        resolveDataPromise = null
-      }
-    })
-
-    let buffer = Buffer.alloc(0)
-    const bytesPerSample = this.bitDepth / 8
-    const frameByteSize = frameSize * this.channels * bytesPerSample
-
-    while (true) {
-      if (streamError) throw streamError
-
-      while (pcmQueue.length > 0) {
-        buffer = Buffer.concat([buffer, ...pcmQueue])
-        pcmQueue = []
-      }
-
-      while (buffer.length >= frameByteSize) {
-        const frameBuffer = buffer.slice(0, frameByteSize)
-        buffer = buffer.slice(frameByteSize)
-        yield this._processFrameBuffer(frameBuffer, frameSize)
-      }
-
-      if (streamEnded && pcmQueue.length === 0) {
-        if (buffer.length > 0) {
-          const paddedFrame = Buffer.concat([
-            buffer,
-            Buffer.alloc(frameByteSize - buffer.length),
-          ])
-          yield this._processFrameBuffer(paddedFrame, frameSize)
+    const handle = await fs.promises.open(this.filePath, 'r')
+    const frameBytes = (frameSize * this.channels * this.bitDepth) / 8
+    try {
+      for (let offset = 0; offset < this.dataSize; offset += frameBytes) {
+        const bytes = Buffer.alloc(frameBytes)
+        const count = Math.min(frameBytes, this.dataSize - offset)
+        let read = 0
+        while (read < count) {
+          const result = await handle.read(
+            bytes,
+            read,
+            count - read,
+            this.dataOffset + offset + read
+          )
+          if (result.bytesRead === 0) throw new Error('Truncated WAV input')
+          read += result.bytesRead
         }
-        break
+        yield this._processFrameBuffer(bytes, frameSize)
       }
-
-      if (!streamEnded) {
-        await new Promise((resolve) => {
-          resolveDataPromise = resolve
-          if (pcmQueue.length > 0 || streamEnded) {
-            resolveDataPromise = null
-            resolve()
-          }
-        })
-      }
+    } finally {
+      await handle.close()
     }
   }
 
@@ -341,42 +338,83 @@ class WavReader {
    * @returns {Float32Array|Array<Float32Array>} Processed frame data
    */
   _processFrameBuffer(frameBuffer, frameSize) {
-    if (this.channels === 1) {
+    const channels = this.channels | 0
+    const bitDepth = this.bitDepth | 0
+    const bytesPerSample = bitDepth / 8
+    if (bitDepth === 16 && LITTLE_ENDIAN_PCM) {
+      const samples = new Int16Array(
+        frameBuffer.buffer,
+        frameBuffer.byteOffset,
+        frameBuffer.length / 2
+      )
+      const left = new Float32Array(frameSize)
+      for (let i = 0; i < frameSize; i++) {
+        left[i] = samples[i * channels] / 32768.0
+      }
+      if (channels === 1) return left
+
+      const right = new Float32Array(frameSize)
+      for (let i = 0; i < frameSize; i++) {
+        right[i] = samples[i * 2 + 1] / 32768.0
+      }
+      return [left, right]
+    }
+    if (bitDepth === 32 && LITTLE_ENDIAN_PCM) {
+      const samples = new Int32Array(
+        frameBuffer.buffer,
+        frameBuffer.byteOffset,
+        frameBuffer.length / 4
+      )
+      const left = new Float32Array(frameSize)
+      for (let i = 0; i < frameSize; i++) {
+        left[i] = samples[i * channels] / 2147483648.0
+      }
+      if (channels === 1) return left
+
+      const right = new Float32Array(frameSize)
+      for (let i = 0; i < frameSize; i++) {
+        right[i] = samples[i * 2 + 1] / 2147483648.0
+      }
+      return [left, right]
+    }
+    if (channels === 1) {
       const frame = new Float32Array(frameSize)
       for (let i = 0; i < frameSize; i++) {
-        frame[i] = this._sampleToFloat(frameBuffer, i * (this.bitDepth / 8))
+        frame[i] = readPcmSample(frameBuffer, i * bytesPerSample, bitDepth)
       }
       return frame
     } else {
       const left = new Float32Array(frameSize)
       const right = new Float32Array(frameSize)
       for (let i = 0; i < frameSize; i++) {
-        const offset = i * this.channels * (this.bitDepth / 8)
-        left[i] = this._sampleToFloat(frameBuffer, offset)
-        right[i] = this._sampleToFloat(frameBuffer, offset + this.bitDepth / 8)
+        const offset = i * channels * bytesPerSample
+        left[i] = readPcmSample(frameBuffer, offset, bitDepth)
+        right[i] = readPcmSample(frameBuffer, offset + bytesPerSample, bitDepth)
       }
       return [left, right]
     }
   }
+}
 
-  /**
-   * Convert PCM sample to normalized float32 value
-   *
-   * @private
-   * @param {Buffer} buffer - PCM data buffer
-   * @param {number} offset - Byte offset to sample
-   * @returns {number} Normalized float value [-1.0, 1.0]
-   */
-  _sampleToFloat(buffer, offset) {
-    if (this.bitDepth === 16) return buffer.readInt16LE(offset) / 32768.0
-    if (this.bitDepth === 24) {
-      let s =
-        buffer[offset] | (buffer[offset + 1] << 8) | (buffer[offset + 2] << 16)
-      if (s > 0x7fffff) s -= 0x1000000
-      return s / 8388608.0
-    }
-    if (this.bitDepth === 32) return buffer.readInt32LE(offset) / 2147483648.0
-    return 0
+/**
+ * Write a complete byte block, handling partial filesystem writes.
+ *
+ * @param {import('node:fs/promises').FileHandle} handle - Open output file
+ * @param {Uint8Array} bytes - Bytes to write
+ * @param {number|null} [position=null] - Absolute offset or the current position
+ * @returns {Promise<void>}
+ */
+async function writeBytes(handle, bytes, position = null) {
+  let offset = 0
+  while (offset < bytes.length) {
+    const result = await handle.write(
+      bytes,
+      offset,
+      bytes.length - offset,
+      position === null ? null : position + offset
+    )
+    if (result.bytesWritten === 0) throw new Error('Could not write output')
+    offset += result.bytesWritten
   }
 }
 
@@ -456,14 +494,31 @@ async function encodeFile(inputFile, outputFile, options) {
     })
 
     const title = options.title || path.basename(outputFile, '.aea')
-    const blob = await AudioProcessor.createAeaBlob(encodedFrames, {
-      title,
-      channelCount: reader.channels,
-      sampleCount: reader.totalSamples,
-    })
-
-    const buffer = await blob.arrayBuffer()
-    await fs.promises.writeFile(outputFile, new Uint8Array(buffer))
+    const output = await fs.promises.open(
+      outputFile,
+      options.force ? 'w' : 'wx'
+    )
+    let count = 0
+    try {
+      await writeBytes(
+        output,
+        AeaFile.createHeader(title, 0, reader.channels, reader.totalSamples)
+      )
+      for await (const frame of encodedFrames) {
+        const bytes = serializeFrame(frame)
+        await writeBytes(output, bytes)
+        count++
+      }
+      const header = AeaFile.createHeader(
+        title,
+        count,
+        reader.channels,
+        reader.totalSamples
+      )
+      await writeBytes(output, header, 0)
+    } finally {
+      await output.close()
+    }
   } finally {
     progress.stop()
   }
@@ -515,15 +570,34 @@ async function decodeFile(inputFile, outputFile, options) {
       onProgress,
     })
 
-    const pcmFrames = await AudioProcessor.collectFrames(decodedFrames)
-    const wavBlob = AudioProcessor.createPcmWaveBlob(
-      pcmFrames,
-      metadata.channelCount,
-      SAMPLE_RATE
+    const output = await fs.promises.open(
+      outputFile,
+      options.force ? 'w' : 'wx'
     )
-
-    const buffer = await wavBlob.arrayBuffer()
-    await fs.promises.writeFile(outputFile, new Uint8Array(buffer))
+    let sampleCount = 0
+    try {
+      await writeBytes(
+        output,
+        createPcmWaveHeader({
+          sampleCount: 0,
+          sampleRate: SAMPLE_RATE,
+          channels: metadata.channelCount,
+        })
+      )
+      for await (const frame of decodedFrames) {
+        const channels = metadata.channelCount === 1 ? [frame] : frame
+        await writeBytes(output, interleavePcm16(channels))
+        sampleCount += channels[0].length
+      }
+      const header = createPcmWaveHeader({
+        sampleCount,
+        sampleRate: SAMPLE_RATE,
+        channels: metadata.channelCount,
+      })
+      await writeBytes(output, header, 0)
+    } finally {
+      await output.close()
+    }
   } finally {
     progress.stop()
   }

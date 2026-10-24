@@ -67,7 +67,7 @@ function buildBiasedScaleFactorTable(bias) {
  *
  * @param {number} activeBfuCount
  * @param {number} maxBfuCount
- * @param {Int32Array} bfuSizes
+ * @param {Array<number>} bfuSizes
  * @param {number} remainingBits
  * @param {Float64Array} biasedScaleFactors
  * @param {Int32Array} allScaleFactorIndices
@@ -108,10 +108,10 @@ function search(
  * distortion for uncoded bands.
  * @param {number} activeBfuCount
  * @param {number} maxBfuCount
- * @param {Int32Array} bfuSizes
+ * @param {Array<number>} bfuSizes
  * @param {Int32Array} wordLengths
  * @param {Int32Array} scaleFactorIndices
- * @param {number} biasedScaleFactors
+ * @param {Float64Array} biasedScaleFactors
  * @param {Float32Array} zeroBitDistortions
  * @returns {number}
  */
@@ -155,7 +155,7 @@ function measureDistortion(
  * (Modified to accept pre-calculated scale factors)
  *
  * @param {number} activeBfuCount
- * @param {Int32Array} bfuSizes
+ * @param {Array<number>} bfuSizes
  * @param {number} remainingBits
  * @param {Float64Array} biasedScaleFactors
  * @param {Int32Array} allScaleFactorIndices
@@ -289,7 +289,7 @@ function siftDown(heapIndices, heapPriorities, startIndex, heapSize) {
  * minimizes the total perceptual distortion.
  *
  * @param {Array<Float32Array>} bfuData
- * @param {Int32Array} bfuSizes
+ * @param {Array<number>} bfuSizes
  * @param {number} maxBfuCount
  * @param {number} allocationBias
  * @returns {{bfuCount:number, allocation:Int32Array, scaleFactorIndices:Int32Array}}
