@@ -24,7 +24,7 @@ const longImdct = new IMDCT(MDCT_SIZE_LONG, MDCT_SIZE_LONG * 4)
  *
  * @param {Float32Array} previous Previous block samples.
  * @param {Float32Array} current Current block samples.
- * @param {Float32Array} window Window coefficients.
+ * @param {Float32Array|Float64Array} window Window coefficients.
  * @returns {Float32Array} Overlap-added samples.
  */
 export function overlapAdd(previous, current, window) {
@@ -58,8 +58,8 @@ export function synthesizeSpectrum(context) {
 
   /**
    * @param {Float32Array} coefficients
-   * @param {number} bandIndex
-   * @param {number} blockMode
+   * @param {i32} bandIndex
+   * @param {i32} blockMode
    * @param {Float32Array} overlapBuffer
    * @param {Object} config
    * @returns {Float32Array}
@@ -86,7 +86,7 @@ export function synthesizeSpectrum(context) {
 
   /**
    * @param {Float32Array} coefficients
-   * @param {number} bandIndex
+   * @param {i32} bandIndex
    * @param {Float32Array} overlapBuffer
    * @param {Object} config
    * @param {Object} transformFunction
@@ -146,7 +146,7 @@ export function synthesizeSpectrum(context) {
 
   /**
    * @param {Float32Array} coefficients
-   * @param {number} bandIndex
+   * @param {i32} bandIndex
    * @param {Float32Array} overlapBuffer
    * @param {Object} config
    * @returns {Float32Array}

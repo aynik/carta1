@@ -6,6 +6,7 @@ export class FFT {
    *
    * @param {Float32Array} real Real input and output components.
    * @param {Float32Array} imaginary Imaginary input and output components.
+   * @nativeUnchecked Native callers supply frame-bounded buffers and indices.
    */
   static transform(real, imaginary) {
     const size = real.length

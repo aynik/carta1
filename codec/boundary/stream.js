@@ -19,7 +19,7 @@ import { frameBufferToFrames, joinChannelFrames } from './pcm.js'
 /**
  * Validate a supported channel mode.
  *
- * @param {number} channelCount
+ * @param {i32} channelCount
  * @throws {Error} If the channel count is unsupported
  */
 function validateChannels(channelCount) {
@@ -32,7 +32,7 @@ function validateChannels(channelCount) {
  * Validate one PCM frame in the selected channel mode.
  *
  * @param {object} frame
- * @param {number} channelCount
+ * @param {i32} channelCount
  * @throws {TypeError} If the frame does not match the selected mode
  * @throws {RangeError} If a selected channel is not one complete frame
  */

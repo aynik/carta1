@@ -65,10 +65,10 @@ function buildBiasedScaleFactorTable(bias) {
 /**
  * Evaluate one legal active-BFU count.
  *
- * @param {number} activeBfuCount
- * @param {number} maxBfuCount
- * @param {Int32Array} bfuSizes
- * @param {number} remainingBits
+ * @param {i32} activeBfuCount
+ * @param {i32} maxBfuCount
+ * @param {Array<number>} bfuSizes
+ * @param {i32} remainingBits
  * @param {Float64Array} biasedScaleFactors
  * @param {Int32Array} allScaleFactorIndices
  * @param {Float32Array} zeroBitDistortions
@@ -106,14 +106,15 @@ function search(
  * Calculates the total distortion for a given allocation.
  * This includes quantization distortion for coded bands and truncation
  * distortion for uncoded bands.
- * @param {number} activeBfuCount
- * @param {number} maxBfuCount
- * @param {Int32Array} bfuSizes
+ * @param {i32} activeBfuCount
+ * @param {i32} maxBfuCount
+ * @param {Array<number>} bfuSizes
  * @param {Int32Array} wordLengths
  * @param {Int32Array} scaleFactorIndices
- * @param {number} biasedScaleFactors
+ * @param {Float64Array} biasedScaleFactors
  * @param {Float32Array} zeroBitDistortions
  * @returns {number}
+ * @nativeUnchecked Native callers supply frame-bounded buffers and indices.
  */
 function measureDistortion(
   activeBfuCount,
@@ -154,12 +155,13 @@ function measureDistortion(
  * Distributes available bits across Band Frequency Units (BFUs) using Rate-Distortion Optimization.
  * (Modified to accept pre-calculated scale factors)
  *
- * @param {number} activeBfuCount
- * @param {Int32Array} bfuSizes
- * @param {number} remainingBits
+ * @param {i32} activeBfuCount
+ * @param {Array<number>} bfuSizes
+ * @param {i32} remainingBits
  * @param {Float64Array} biasedScaleFactors
  * @param {Int32Array} allScaleFactorIndices
  * @returns {object} Retained allocation decisions.
+ * @nativeUnchecked Native callers supply frame-bounded buffers and indices.
  */
 function distributeBits(
   activeBfuCount,
@@ -251,8 +253,9 @@ function distributeBits(
  *
  * @param {Int32Array} heapIndices
  * @param {Float32Array} heapPriorities
- * @param {number} startIndex
- * @param {number} heapSize
+ * @param {i32} startIndex
+ * @param {i32} heapSize
+ * @nativeUnchecked Native callers supply frame-bounded buffers and indices.
  */
 function siftDown(heapIndices, heapPriorities, startIndex, heapSize) {
   let i = startIndex
@@ -289,8 +292,8 @@ function siftDown(heapIndices, heapPriorities, startIndex, heapSize) {
  * minimizes the total perceptual distortion.
  *
  * @param {Array<Float32Array>} bfuData
- * @param {Int32Array} bfuSizes
- * @param {number} maxBfuCount
+ * @param {Array<number>} bfuSizes
+ * @param {i32} maxBfuCount
  * @param {number} allocationBias
  * @returns {{bfuCount:number, allocation:Int32Array, scaleFactorIndices:Int32Array}}
  */
@@ -360,7 +363,7 @@ export function solve(bfuData, bfuSizes, maxBfuCount, allocationBias) {
  * Find the optimal scale factor index for a set of coefficients.
  * Same semantics as the original.
  * @param {Float32Array} coefficients
- * @param {number} length
+ * @param {i32} length
  * @returns {number}
  */
 export function findScaleFactor(coefficients, length) {

@@ -21,8 +21,17 @@ import { BFU_AMOUNTS, SPECS_PER_BFU, WORD_LENGTH_BITS } from '../core/tables.js'
 import { packBits, unpackBits, unpackSignedBits } from './bitstream.js'
 
 /**
+ * @typedef {object} EncodedFrame
+ * @property {i32} nBfu - Number of coded frequency units.
+ * @property {number[]} blockModes - Transform mode for each frequency band.
+ * @property {Int32Array} scaleFactorIndices - Quantization scales.
+ * @property {Int32Array} wordLengthIndices - Coefficient word lengths.
+ * @property {Int32Array[]} quantizedCoefficients - Coefficients per unit.
+ */
+
+/**
  * Serializes encoded frame data into binary format
- * @param {object} frameData - The encoded frame data to serialize
+ * @param {EncodedFrame} frameData - The encoded frame data to serialize
  * @returns {Uint8Array} Serialized frame data buffer
  */
 export function serializeFrame(frameData) {
@@ -87,7 +96,7 @@ export function serializeFrame(frameData) {
 /**
  * Deserializes binary frame data back into structured format
  * @param {Uint8Array} buffer - Binary frame data buffer
- * @returns {object} Deserialized frame data
+ * @returns {EncodedFrame} Deserialized frame data
  * @throws {Error} If buffer size is invalid
  */
 export function deserializeFrame(buffer) {

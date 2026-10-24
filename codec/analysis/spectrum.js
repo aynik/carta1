@@ -35,8 +35,8 @@ export function transformSpectrum(context) {
 
   /**
    * @param {Float32Array} samples
-   * @param {number} bandIndex
-   * @param {number} blockMode
+   * @param {i32} bandIndex
+   * @param {i32} blockMode
    * @param {Float32Array} overlapBuffer
    * @returns {Float32Array}
    */
@@ -58,7 +58,7 @@ export function transformSpectrum(context) {
 
   /**
    * @param {Float32Array} samples
-   * @param {number} bandIndex
+   * @param {i32} bandIndex
    * @param {Object} config
    * @param {Object} transformFunction
    * @param {Float32Array} overlapBuffer
@@ -91,7 +91,7 @@ export function transformSpectrum(context) {
 
   /**
    * @param {Float32Array} samples
-   * @param {number} bandIndex
+   * @param {i32} bandIndex
    * @param {Object} config
    * @param {Float32Array} overlapBuffer
    * @returns {Float32Array}
@@ -126,7 +126,7 @@ export function transformSpectrum(context) {
   /**
    * @param {Float32Array} samples
    * @param {Float32Array} overlapBuffer
-   * @param {number} blockSize
+   * @param {i32} blockSize
    */
   function applyTailWindowing(samples, overlapBuffer, blockSize) {
     const tailStart = blockSize - MDCT_OVERLAP_SIZE

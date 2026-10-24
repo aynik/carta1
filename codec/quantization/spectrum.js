@@ -16,8 +16,8 @@ import { SCALE_FACTORS } from '../core/tables.js'
 /**
  * Quantize coefficients.
  * @param {Float32Array} coefficients
- * @param {number} scaleFactorIndex
- * @param {number} bitsPerSample
+ * @param {i32} scaleFactorIndex
+ * @param {i32} bitsPerSample
  * @returns {Int32Array} out
  */
 export function quantize(coefficients, scaleFactorIndex, bitsPerSample) {
@@ -47,8 +47,8 @@ export function quantize(coefficients, scaleFactorIndex, bitsPerSample) {
 /**
  * Dequantize coefficients.
  * @param {Int32Array} quantized
- * @param {number} scaleFactorIndex
- * @param {number} bitsPerSample
+ * @param {i32} scaleFactorIndex
+ * @param {i32} bitsPerSample
  * @returns {Float32Array}
  */
 export function dequantize(quantized, scaleFactorIndex, bitsPerSample) {

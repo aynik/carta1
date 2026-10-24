@@ -8,7 +8,7 @@
 /**
  * Reject field widths outside the shared bitstream primitive's safe range.
  *
- * @param {number} bitCount
+ * @param {i32} bitCount
  * @returns {void}
  */
 function assertBitCount(bitCount) {
@@ -22,9 +22,9 @@ function assertBitCount(bitCount) {
 /**
  * Pack bits into a buffer at a specific bit position
  * @param {Uint8Array} buffer - Destination buffer
- * @param {number} bitPosition - Bit position to start writing at
+ * @param {i32} bitPosition - Bit position to start writing at
  * @param {number} value - Value to pack
- * @param {number} bitCount - Number of bits to pack
+ * @param {i32} bitCount - Number of bits to pack
  * @returns {void}
  */
 export function packBits(buffer, bitPosition, value, bitCount) {
@@ -34,7 +34,7 @@ export function packBits(buffer, bitPosition, value, bitCount) {
   let byteIndex = Math.floor(bitPosition / 8)
   let bitOffset = bitPosition % 8
 
-  const unsignedValue = Number(value) >>> 0
+  const packedValue = Number(value) | 0
 
   let bitsWritten = 0
   while (bitsWritten < bitCount && byteIndex < buffer.length) {
@@ -42,7 +42,7 @@ export function packBits(buffer, bitPosition, value, bitCount) {
     const bitsToWrite = Math.min(bitCount - bitsWritten, bitsAvailable)
 
     const shift = bitCount - bitsWritten - bitsToWrite
-    const valueBits = (unsignedValue >>> shift) & (2 ** bitsToWrite - 1)
+    const valueBits = (packedValue >>> shift) & (2 ** bitsToWrite - 1)
 
     const mask = (2 ** bitsToWrite - 1) << (bitsAvailable - bitsToWrite)
     buffer[byteIndex] =
@@ -57,8 +57,8 @@ export function packBits(buffer, bitPosition, value, bitCount) {
 /**
  * Unpack bits from a buffer at a specific bit position
  * @param {Uint8Array} buffer - Source buffer
- * @param {number} bitPosition - Bit position to start reading from
- * @param {number} bitCount - Number of bits to unpack
+ * @param {i32} bitPosition - Bit position to start reading from
+ * @param {i32} bitCount - Number of bits to unpack
  * @returns {number} Unpacked unsigned value
  */
 export function unpackBits(buffer, bitPosition, bitCount) {
@@ -88,8 +88,8 @@ export function unpackBits(buffer, bitPosition, bitCount) {
 /**
  * Unpack signed bits from a buffer at a specific bit position
  * @param {Uint8Array} buffer - Source buffer
- * @param {number} bitPosition - Bit position to start reading from
- * @param {number} bitCount - Number of bits to unpack
+ * @param {i32} bitPosition - Bit position to start reading from
+ * @param {i32} bitCount - Number of bits to unpack
  * @returns {number} Unpacked signed value (two's complement)
  */
 export function unpackSignedBits(buffer, bitPosition, bitCount) {

@@ -65,7 +65,7 @@ export class AudioProcessor {
 
   /**
    * @param {Float32Array[]} buffers
-   * @param {number} [frameSize]
+   * @param {i32} [frameSize]
    * @returns {Generator<Float32Array>|Generator<[Float32Array, Float32Array]>}
    */
   static *frameBufferToFrames(buffers, frameSize) {
@@ -144,7 +144,7 @@ export class AudioProcessor {
 
   /**
    * @param {Float32Array[]|[Float32Array, Float32Array][]} pcmFrames
-   * @param {number} [channelCount=1]
+   * @param {i32} [channelCount=1]
    * @param {number} [sampleRate=SAMPLE_RATE]
    * @returns {Blob}
    */
@@ -173,7 +173,7 @@ export class AudioProcessor {
    * Preserve the supported WAVE facade name.
    *
    * @param {Float32Array[]|[Float32Array, Float32Array][]} pcmFrames
-   * @param {number} [channelCount=1]
+   * @param {i32} [channelCount=1]
    * @param {number} [sampleRate=SAMPLE_RATE]
    * @returns {Blob}
    */
@@ -185,7 +185,7 @@ export class AudioProcessor {
    * Assemble PCM frames using the supported interleaved result shape.
    *
    * @param {Float32Array[]|[Float32Array, Float32Array][]} pcmFrames
-   * @param {number} channelCount
+   * @param {i32} channelCount
    * @returns {Float32Array}
    */
   static assemblePcmFrames(pcmFrames, channelCount) {

@@ -42,7 +42,6 @@ depends on Carta1:
 ```bash
 carta1 --encode input.wav output.aea
 carta1 --decode input.aea output.wav
-carta1 --json input.aea structure.json
 
 npx carta1 --encode input.wav output.aea
 ```
@@ -55,7 +54,6 @@ signed 16-bit PCM WAVE output.
 | --------------------- | ---------------------------------------------------- |
 | `-e, --encode`        | Encode PCM WAVE to AEA.                              |
 | `-d, --decode`        | Decode AEA to PCM WAVE.                              |
-| `-j, --json`          | Write AEA metadata and frame structure as JSON.      |
 | `-q, --quiet`         | Suppress normal output and progress.                 |
 | `-f, --force`         | Overwrite an existing output file.                   |
 | `-t, --title <title>` | Set a UTF-8 AEA title (up to 255 encoded bytes).     |
@@ -64,7 +62,7 @@ signed 16-bit PCM WAVE output.
 | `-V, --version`       | Print the Carta1 version.                            |
 | `-h, --help`          | Print command help.                                  |
 
-Exactly one of `--encode`, `--decode`, and `--json` is required. The input and
+Exactly one of `--encode` and `--decode` is required. The input and
 output are positional paths. Existing output is preserved unless `--force` is
 provided.
 

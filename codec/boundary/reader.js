@@ -48,8 +48,8 @@ export class AeaReader {
     for await (const chunk of stream) {
       buffer = Buffer.concat([buffer, chunk])
       while (buffer.length >= SOUND_UNIT_SIZE) {
-        const frameData = buffer.slice(0, SOUND_UNIT_SIZE)
-        buffer = buffer.slice(SOUND_UNIT_SIZE)
+        const frameData = buffer.subarray(0, SOUND_UNIT_SIZE)
+        buffer = buffer.subarray(SOUND_UNIT_SIZE)
         yield deserializeFrame(frameData)
       }
     }

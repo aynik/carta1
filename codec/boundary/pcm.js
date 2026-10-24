@@ -17,7 +17,7 @@ import {
  * Write a four-character code.
  *
  * @param {DataView} output
- * @param {number} offset
+ * @param {i32} offset
  * @param {string} value
  */
 function writeFourCc(output, offset, value) {
@@ -48,7 +48,7 @@ export function joinChannelFrames(frames) {
  * Split planar PCM buffers into complete zero-padded codec frames.
  *
  * @param {Float32Array[]} buffers
- * @param {number} [frameSize=SAMPLES_PER_FRAME]
+ * @param {i32} [frameSize=SAMPLES_PER_FRAME]
  * @returns {Generator<Float32Array>|Generator<[Float32Array, Float32Array]>}
  * @throws {Error} If the channel count is unsupported
  */

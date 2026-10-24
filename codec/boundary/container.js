@@ -46,7 +46,7 @@ export class AeaFile {
    *
    * @param {string} [title='']
    * @param {number} [frameCount=0]
-   * @param {number} [channelCount=1]
+   * @param {i32} [channelCount=1]
    * @param {number} [sampleCount=0]
    * @param {number} [primingSampleCount=STREAM_PRIMING_SAMPLES]
    * @returns {Uint8Array}

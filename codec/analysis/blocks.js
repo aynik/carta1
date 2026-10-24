@@ -44,6 +44,9 @@ function calculateSpectralFeatures(currentCoeffs, prevCoeffs) {
 /**
  * Calculate normalized spectral flux (positive spectral differences)
  * High values indicate sudden onset of new spectral components
+ * @param {Float32Array} currentCoeffs - Current frame coefficients
+ * @param {Float32Array} prevCoeffs - Previous frame coefficients
+ * @returns {number} Spectral flux normalized by current frame energy
  */
 function calculateSpectralFlux(currentCoeffs, prevCoeffs) {
   let flux = 0
@@ -184,7 +187,7 @@ function calculateTransientScore(features) {
 /**
  * Perform FFT on time-domain samples and return magnitude spectrum
  * @param {Float32Array} samples - Time-domain samples
- * @param {number} fftSize - FFT size (must be power of 2)
+ * @param {i32} fftSize - FFT size (must be power of 2)
  * @returns {Float32Array} Magnitude spectrum (positive frequencies only)
  */
 export function performFFT(samples, fftSize) {

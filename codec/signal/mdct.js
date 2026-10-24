@@ -13,6 +13,10 @@ import { throwError } from '../utils.js'
  * Base class for MDCT and IMDCT transforms
  */
 class MdctBase {
+  /**
+   * @param {number} size - Transform size in samples
+   * @param {number} scale - Transform normalization factor
+   */
   constructor(size, scale) {
     this.size = size
     this.halfSize = size >> 1
@@ -43,8 +47,12 @@ export class MDCT extends MdctBase {
   /**
    * Perform forward MDCT transform
    * @param {Float32Array} input - Time-domain input samples
-   * @param {Object} mdctBuffers - Optional work buffers for FFT
+   * @param {Object} mdctBuffers - Required work buffers keyed by FFT size
+   * @param {Float32Array|null} [destination=null] - Optional output buffer
+   * @param {i32} [destinationOffset=0] - First output index in destination
    * @returns {Float32Array} Frequency-domain MDCT coefficients
+   * @throws {Error} If the required FFT work buffers are missing
+   * @nativeUnchecked Native callers supply frame-bounded buffers and indices.
    */
   transform(
     input,
@@ -52,21 +60,20 @@ export class MDCT extends MdctBase {
     destination = null,
     destinationOffset = 0
   ) {
+    const { halfSize, quarterSize, fftSize, sinCosTable } = this
     const buffers =
-      mdctBuffers?.[this.fftSize] ??
-      throwError(`MDCT.transform: mdctBuffers[${this.fftSize}] is required`)
+      mdctBuffers?.[fftSize] ??
+      throwError(`MDCT.transform: mdctBuffers[${fftSize}] is required`)
     const real =
       buffers?.real ??
-      throwError(
-        `MDCT.transform: mdctBuffers[${this.fftSize}].real is required`
-      )
+      throwError(`MDCT.transform: mdctBuffers[${fftSize}].real is required`)
     const imag =
       buffers?.imaginary ??
       throwError(
-        `MDCT.transform: mdctBuffers[${this.fftSize}].imaginary is required`
+        `MDCT.transform: mdctBuffers[${fftSize}].imaginary is required`
       )
 
-    const n4 = this.quarterSize
+    const n4 = quarterSize
     const n34 = 3 * n4
 
     real.fill(0)
@@ -81,14 +88,14 @@ export class MDCT extends MdctBase {
 
       const r = input[i1] + input[i2]
       const im = input[i3] - input[i4]
-      const c = this.sinCosTable[i]
-      const s = this.sinCosTable[i + 1]
+      const c = sinCosTable[i]
+      const s = sinCosTable[i + 1]
 
       real[i >> 1] = r * c + im * s
       imag[i >> 1] = im * c - r * s
     }
 
-    for (let i = n4; i < this.halfSize; i += 2) {
+    for (let i = n4; i < halfSize; i += 2) {
       const idx = i >> 1
       const i1 = n34 - 1 - i
       const i2 = i - n4
@@ -97,8 +104,8 @@ export class MDCT extends MdctBase {
 
       const r = input[i1] - input[i2]
       const im = input[i3] + input[i4]
-      const c = this.sinCosTable[i]
-      const s = this.sinCosTable[i + 1]
+      const c = sinCosTable[i]
+      const s = sinCosTable[i + 1]
 
       real[idx] = r * c + im * s
       imag[idx] = im * c - r * s
@@ -107,15 +114,15 @@ export class MDCT extends MdctBase {
     FFT.transform(real, imag)
 
     // Post-FFT processing
-    const output = destination ?? new Float32Array(this.halfSize)
-    for (let i = 0; i < this.fftSize; i++) {
-      const c = this.sinCosTable[i * 2]
-      const s = this.sinCosTable[i * 2 + 1]
+    const output = destination ?? new Float32Array(halfSize)
+    for (let i = 0; i < fftSize; i++) {
+      const c = sinCosTable[i * 2]
+      const s = sinCosTable[i * 2 + 1]
       const re = real[i]
       const im = imag[i]
 
       output[destinationOffset + i * 2] = -re * c - im * s
-      output[destinationOffset + this.halfSize - 1 - i * 2] = -re * s + im * c
+      output[destinationOffset + halfSize - 1 - i * 2] = -re * s + im * c
     }
 
     return output
@@ -133,8 +140,12 @@ export class IMDCT extends MdctBase {
   /**
    * Perform inverse MDCT transform
    * @param {Float32Array} input - Frequency-domain MDCT coefficients
-   * @param {Object} mdctBuffers - Optional work buffers for FFT
+   * @param {Object} mdctBuffers - Required work buffers keyed by FFT size
+   * @param {Float32Array|null} [destination=null] - Optional output buffer
+   * @param {i32} [destinationOffset=0] - First output index in destination
    * @returns {Float32Array} Time-domain output samples
+   * @throws {Error} If the required FFT work buffers are missing
+   * @nativeUnchecked Native callers supply frame-bounded buffers and indices.
    */
   transform(
     input,
@@ -142,33 +153,32 @@ export class IMDCT extends MdctBase {
     destination = null,
     destinationOffset = 0
   ) {
+    const { size, halfSize, quarterSize, fftSize, sinCosTable } = this
     const buffers =
-      mdctBuffers?.[this.fftSize] ??
-      throwError(`IMDCT.transform: mdctBuffers[${this.fftSize}] is required`)
+      mdctBuffers?.[fftSize] ??
+      throwError(`IMDCT.transform: mdctBuffers[${fftSize}] is required`)
     const real =
       buffers?.real ??
-      throwError(
-        `IMDCT.transform: mdctBuffers[${this.fftSize}].real is required`
-      )
+      throwError(`IMDCT.transform: mdctBuffers[${fftSize}].real is required`)
     const imag =
       buffers?.imaginary ??
       throwError(
-        `IMDCT.transform: mdctBuffers[${this.fftSize}].imaginary is required`
+        `IMDCT.transform: mdctBuffers[${fftSize}].imaginary is required`
       )
 
-    const n4 = this.quarterSize
+    const n4 = quarterSize
     const n34 = 3 * n4
 
     real.fill(0)
     imag.fill(0)
 
     // Pre-FFT processing
-    for (let i = 0; i < this.fftSize; i++) {
+    for (let i = 0; i < fftSize; i++) {
       const i2 = i * 2
       const r = -input[i2]
-      const im = -input[this.halfSize - 1 - i2]
-      const c = this.sinCosTable[i2]
-      const s = this.sinCosTable[i2 + 1]
+      const im = -input[halfSize - 1 - i2]
+      const c = sinCosTable[i2]
+      const s = sinCosTable[i2 + 1]
 
       real[i] = im * s + r * c
       imag[i] = im * c - r * s
@@ -177,12 +187,12 @@ export class IMDCT extends MdctBase {
     FFT.transform(real, imag)
 
     // Post-FFT butterfly
-    const output = destination ?? new Float32Array(this.size)
+    const output = destination ?? new Float32Array(size)
 
-    for (let i = 0; i < this.fftSize / 2; i++) {
+    for (let i = 0; i < fftSize / 2; i++) {
       const i2 = i * 2
-      const c = this.sinCosTable[i2]
-      const s = this.sinCosTable[i2 + 1]
+      const c = sinCosTable[i2]
+      const s = sinCosTable[i2 + 1]
       const re = real[i]
       const im = imag[i]
 
@@ -195,11 +205,11 @@ export class IMDCT extends MdctBase {
       output[destinationOffset + n4 - 1 - i2] = -i1
     }
 
-    for (let i = this.fftSize / 2; i < this.fftSize; i++) {
-      const idx = (i - this.fftSize / 2) * 2 + n4
+    for (let i = fftSize / 2; i < fftSize; i++) {
+      const idx = (i - fftSize / 2) * 2 + n4
       const i2 = i * 2
-      const c = this.sinCosTable[i2]
-      const s = this.sinCosTable[i2 + 1]
+      const c = sinCosTable[i2]
+      const s = sinCosTable[i2 + 1]
       const re = real[i]
       const im = imag[i]
 

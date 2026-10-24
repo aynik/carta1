@@ -25,14 +25,19 @@ import {
   QMF_SYNTHESIS_MODULATION_COEFFICIENTS,
 } from '../core/tables.js'
 
-const float32Round = Math.fround
+/**
+ * @typedef {object} QmfScratch
+ * @property {Float32Array} polyphase - Filter components.
+ * @property {Float64Array} extended - Extended-precision components.
+ * @property {Float32Array} bands - Modulated subband samples.
+ */
 
 /**
  * Preserve the reference spill order of the native sixteen-band polyphase sum.
  * Other supported widths use the dense configurable path below.
  *
  * @param {Float32Array} input
- * @param {number} inputOffset
+ * @param {i32} inputOffset
  * @param {Float32Array} accumulator
  * @param {Float64Array} extended
  */
@@ -44,9 +49,9 @@ function filter16Band(input, inputOffset, accumulator, extended) {
     const firstSample = component < 8 ? component : component + 8
     const secondSample = component < 8 ? 15 - component : 39 - component
     const firstProduct = input[inputOffset + firstSample] * c[coefficientOffset]
-    accumulator[component] = float32Round(
+    accumulator[component] = Math.fround(
       input[inputOffset + secondSample] * c[coefficientOffset + 1] +
-        (component % 4 === 0 ? float32Round(firstProduct) : firstProduct)
+        (component % 4 === 0 ? Math.fround(firstProduct) : firstProduct)
     )
   }
 
@@ -63,47 +68,47 @@ function filter16Band(input, inputOffset, accumulator, extended) {
     const inputBase = inputOffset + segment * 32
     const term = segment * 2
 
-    const product0 = float32Round(input[inputBase] * c[term])
-    accumulator[0] = float32Round(
+    const product0 = Math.fround(input[inputBase] * c[term])
+    accumulator[0] = Math.fround(
       accumulator[0] + product0 + input[inputBase + 15] * c[term + 1]
     )
-    accumulator[1] = float32Round(
+    accumulator[1] = Math.fround(
       input[inputBase + 1] * c[QMF_ANALYSIS_TERMS + term] +
-        float32Round(
+        Math.fround(
           input[inputBase + 14] * c[QMF_ANALYSIS_TERMS + term + 1] +
             accumulator[1]
         )
     )
-    const product2 = float32Round(
+    const product2 = Math.fround(
       input[inputBase + 2] * c[QMF_ANALYSIS_TERMS * 2 + term]
     )
-    accumulator[2] = float32Round(
+    accumulator[2] = Math.fround(
       accumulator[2] +
         product2 +
         input[inputBase + 13] * c[QMF_ANALYSIS_TERMS * 2 + term + 1]
     )
-    accumulator[3] = float32Round(
+    accumulator[3] = Math.fround(
       accumulator[3] +
         input[inputBase + 3] * c[QMF_ANALYSIS_TERMS * 3 + term] +
         input[inputBase + 12] * c[QMF_ANALYSIS_TERMS * 3 + term + 1]
     )
-    const product4 = float32Round(
+    const product4 = Math.fround(
       input[inputBase + 4] * c[QMF_ANALYSIS_TERMS * 4 + term]
     )
     const product4Sum =
       product4 + input[inputBase + 11] * c[QMF_ANALYSIS_TERMS * 4 + term + 1]
-    accumulator[4] = float32Round(accumulator[4] + product4Sum)
-    accumulator[5] = float32Round(
+    accumulator[4] = Math.fround(accumulator[4] + product4Sum)
+    accumulator[5] = Math.fround(
       input[inputBase + 5] * c[QMF_ANALYSIS_TERMS * 5 + term] +
-        float32Round(
+        Math.fround(
           input[inputBase + 10] * c[QMF_ANALYSIS_TERMS * 5 + term + 1] +
             accumulator[5]
         )
     )
-    const product6 = float32Round(
+    const product6 = Math.fround(
       input[inputBase + 6] * c[QMF_ANALYSIS_TERMS * 6 + term]
     )
-    accumulator[6] = float32Round(
+    accumulator[6] = Math.fround(
       accumulator[6] +
         product6 +
         input[inputBase + 9] * c[QMF_ANALYSIS_TERMS * 6 + term + 1]
@@ -112,16 +117,16 @@ function filter16Band(input, inputOffset, accumulator, extended) {
       accumulator[7] +
       (input[inputBase + 7] * c[QMF_ANALYSIS_TERMS * 7 + term] +
         input[inputBase + 8] * c[QMF_ANALYSIS_TERMS * 7 + term + 1])
-    accumulator[7] = float32Round(extended7)
+    accumulator[7] = Math.fround(extended7)
 
     extended8 =
       input[inputBase + 31] * c[QMF_ANALYSIS_TERMS * 8 + term + 1] +
       input[inputBase + 16] * c[QMF_ANALYSIS_TERMS * 8 + term] +
       accumulator[8]
-    accumulator[8] = float32Round(extended8)
-    accumulator[9] = float32Round(
+    accumulator[8] = Math.fround(extended8)
+    accumulator[9] = Math.fround(
       input[inputBase + 17] * c[QMF_ANALYSIS_TERMS * 9 + term] +
-        float32Round(
+        Math.fround(
           input[inputBase + 30] * c[QMF_ANALYSIS_TERMS * 9 + term + 1] +
             accumulator[9]
         )
@@ -130,32 +135,32 @@ function filter16Band(input, inputOffset, accumulator, extended) {
       accumulator[10] +
       (input[inputBase + 18] * c[QMF_ANALYSIS_TERMS * 10 + term] +
         input[inputBase + 29] * c[QMF_ANALYSIS_TERMS * 10 + term + 1])
-    accumulator[10] = float32Round(extended10)
+    accumulator[10] = Math.fround(extended10)
     extended11 =
       accumulator[11] +
       (input[inputBase + 19] * c[QMF_ANALYSIS_TERMS * 11 + term] +
         input[inputBase + 28] * c[QMF_ANALYSIS_TERMS * 11 + term + 1])
-    accumulator[11] = float32Round(extended11)
+    accumulator[11] = Math.fround(extended11)
     extended12 =
       accumulator[12] +
       (input[inputBase + 20] * c[QMF_ANALYSIS_TERMS * 12 + term] +
         input[inputBase + 27] * c[QMF_ANALYSIS_TERMS * 12 + term + 1])
-    accumulator[12] = float32Round(extended12)
+    accumulator[12] = Math.fround(extended12)
     extended13 =
       accumulator[13] +
       (input[inputBase + 21] * c[QMF_ANALYSIS_TERMS * 13 + term] +
         input[inputBase + 26] * c[QMF_ANALYSIS_TERMS * 13 + term + 1])
-    accumulator[13] = float32Round(extended13)
+    accumulator[13] = Math.fround(extended13)
     extended14 =
       accumulator[14] +
       (input[inputBase + 22] * c[QMF_ANALYSIS_TERMS * 14 + term] +
         input[inputBase + 25] * c[QMF_ANALYSIS_TERMS * 14 + term + 1])
-    accumulator[14] = float32Round(extended14)
+    accumulator[14] = Math.fround(extended14)
     const product15 =
       input[inputBase + 24] * c[QMF_ANALYSIS_TERMS * 15 + term + 1] +
       input[inputBase + 23] * c[QMF_ANALYSIS_TERMS * 15 + term]
     extended15 = accumulator[15] + product15
-    accumulator[15] = float32Round(extended15)
+    accumulator[15] = Math.fround(extended15)
   }
 
   extended[7] = extended7
@@ -189,66 +194,64 @@ function modulate16Band(polyphase, extended, output) {
   const rotated7Extended = extended[7] * cos64[0]
   const rotated0Extended = polyphase[0] * cos64[7]
   const rotated13Extended = extended[13] * cos64[13]
-  const rotated7 = float32Round(rotated7Extended)
-  const rotated5 = float32Round(polyphase[5] * cos64[2])
+  const rotated7 = Math.fround(rotated7Extended)
+  const rotated5 = Math.fround(polyphase[5] * cos64[2])
   const rotated6Extended = polyphase[6] * cos64[1]
-  const rotated6 = float32Round(rotated6Extended)
+  const rotated6 = Math.fround(rotated6Extended)
   const rotated4Extended = polyphase[4] * cos64[3]
-  const rotated4 = float32Round(rotated4Extended)
-  const rotated3 = float32Round(polyphase[3] * cos64[4])
+  const rotated4 = Math.fround(rotated4Extended)
+  const rotated3 = Math.fround(polyphase[3] * cos64[4])
   const rotated3Extended = rotated3
-  const rotated2 = float32Round(polyphase[2] * cos64[5])
-  const rotated0 = float32Round(rotated0Extended)
+  const rotated2 = Math.fround(polyphase[2] * cos64[5])
+  const rotated0 = Math.fround(rotated0Extended)
   const rotated1Extended = polyphase[1] * cos64[6]
   const rotated8Extended = polyphase[8] * cos64[8]
-  const rotated8 = float32Round(rotated8Extended)
+  const rotated8 = Math.fround(rotated8Extended)
   const rotated14Extended = extended[14] * cos64[14]
-  const rotated14 = float32Round(rotated14Extended)
+  const rotated14 = Math.fround(rotated14Extended)
   const rotated15Extended = extended[15] * cos64[15]
   const rotated9Extended = polyphase[9] * cos64[9]
-  const rotated9 = float32Round(rotated9Extended)
-  const rotated13 = float32Round(rotated13Extended)
+  const rotated9 = Math.fround(rotated9Extended)
+  const rotated13 = Math.fround(rotated13Extended)
   const rotated10Extended = extended[10] * cos64[10]
-  const rotated10 = float32Round(rotated10Extended)
+  const rotated10 = Math.fround(rotated10Extended)
   const rotated11Extended = extended[11] * cos64[11]
-  const rotated11 = float32Round(rotated11Extended)
+  const rotated11 = Math.fround(rotated11Extended)
   const rotated12Extended = extended[12] * cos64[12]
 
   const sum0Extended = rotated0 + rotated8 + (rotated7 + rotated15Extended)
   const mix0Term0Extended = (rotated7 - rotated15Extended) * twoCosPi32
   const mix0Term1Extended = (rotated0 - rotated8) * cos32[7]
   const mix0Extended = mix0Term0Extended + mix0Term1Extended
-  const mix0 = float32Round(mix0Extended)
+  const mix0 = Math.fround(mix0Extended)
   const mixASum0Extended = rotated7 + rotated15Extended
   const mixASum1Extended = rotated0 + rotated8
   const mixAExtended = twoCosPi16 * (mixASum0Extended - mixASum1Extended)
-  const mix1 = float32Round(
-    twoCosPi16 * (mix0Term0Extended - mix0Term1Extended)
-  )
+  const mix1 = Math.fround(twoCosPi16 * (mix0Term0Extended - mix0Term1Extended))
 
   const sum1Extended = rotated14 + rotated1Extended + (rotated6 + rotated9)
-  const sum1Float32 = float32Round(sum1Extended)
+  const sum1Float32 = Math.fround(sum1Extended)
   const mix2Term0Extended = (rotated1Extended - rotated9) * cos32[6]
   const mixBInnerExtended = rotated6 + rotated14 - rotated1Extended - rotated9
-  const mixBInnerFloat32 = float32Round(mixBInnerExtended)
+  const mixBInnerFloat32 = Math.fround(mixBInnerExtended)
   const mixBExtended = cos16[1] * mixBInnerFloat32
-  const mixB = float32Round(mixBExtended)
-  const mix2Term1Extended = float32Round(rotated6 - rotated14) * cos32[1]
-  const mix2 = float32Round(mix2Term1Extended + mix2Term0Extended)
-  const mix3 = float32Round(cos16[1] * (mix2Term1Extended - mix2Term0Extended))
+  const mixB = Math.fround(mixBExtended)
+  const mix2Term1Extended = Math.fround(rotated6 - rotated14) * cos32[1]
+  const mix2 = Math.fround(mix2Term1Extended + mix2Term0Extended)
+  const mix3 = Math.fround(cos16[1] * (mix2Term1Extended - mix2Term0Extended))
 
   const sum2Pair0Extended = rotated5 + rotated13
   const sum2Pair1Extended = rotated2 + rotated10
   const sum2Extended = sum2Pair0Extended + sum2Pair1Extended
-  const sum2Float32 = float32Round(sum2Extended)
+  const sum2Float32 = Math.fround(sum2Extended)
   const mixCInnerExtended = sum2Pair0Extended - rotated2 - rotated10
-  const mixCInnerFloat32 = float32Round(mixCInnerExtended)
+  const mixCInnerFloat32 = Math.fround(mixCInnerExtended)
   const mixCExtended = cos16[2] * mixCInnerFloat32
-  const mixC = float32Round(mixCExtended)
+  const mixC = Math.fround(mixCExtended)
   const mix4Term0Extended = (rotated5 - rotated13) * cos32[2]
   const mix4Term1Extended = (rotated2 - rotated10) * cos32[5]
-  const mix4 = float32Round(mix4Term0Extended + mix4Term1Extended)
-  const mix5 = float32Round(cos16[2] * (mix4Term0Extended - mix4Term1Extended))
+  const mix4 = Math.fround(mix4Term0Extended + mix4Term1Extended)
+  const mix5 = Math.fround(cos16[2] * (mix4Term0Extended - mix4Term1Extended))
 
   const sum3Extended =
     rotated3 + rotated4 + rotated11Extended + rotated12Extended
@@ -257,61 +260,61 @@ function modulate16Band(polyphase, extended, output) {
     rotated4 + rotated12Extended - rotated3Extended - rotated11Extended
   const mixDExtended = cos16[3] * mixDInnerExtended
   const mix6Term1Extended = (rotated3Extended - rotated11) * cos32[4]
-  const mix6 = float32Round(mix6Term0Extended + mix6Term1Extended)
-  const mix6Term0SpilledExtended = float32Round(mix6Term0Extended)
-  const mix7 = float32Round(
+  const mix6 = Math.fround(mix6Term0Extended + mix6Term1Extended)
+  const mix6Term0SpilledExtended = Math.fround(mix6Term0Extended)
+  const mix7 = Math.fround(
     cos16[3] * (mix6Term0SpilledExtended - mix6Term1Extended)
   )
 
   const sumAllExtended = sum0Extended + sum1Float32 + sum2Float32 + sum3Extended
   const out0Extended = sumAllExtended * 0.5
-  output[0] = float32Round(out0Extended)
+  output[0] = Math.fround(out0Extended)
   const mid0Extended =
     cosPi4 * (sum0Extended - sum1Float32 - sum2Float32 + sum3Extended)
-  const mid0 = float32Round(mid0Extended)
+  const mid0 = Math.fround(mid0Extended)
   const diff03Extended = (sum0Extended - sum3Extended) * twoCosPi8
-  const diff12Extended = float32Round(sum1Float32 - sum2Float32) * pi8[1]
-  const diff12 = float32Round(diff12Extended)
+  const diff12Extended = Math.fround(sum1Float32 - sum2Float32) * pi8[1]
+  const diff12 = Math.fround(diff12Extended)
   const mid1Extended = half[1] * diff03Extended - half[2] * diff12
-  const mid1 = float32Round(mid1Extended)
+  const mid1 = Math.fround(mid1Extended)
   const mid2Extended = (mixAExtended - mixDExtended) * pi8[2]
-  const mid2 = float32Round(mid2Extended)
+  const mid2 = Math.fround(mid2Extended)
   const mid3Extended = (mixB - mixC) * pi8[3]
   const avg2Pair0Extended = mixB + mixC
   const avg2Pair1Extended = mixAExtended + mixDExtended
   const avg2Extended = (avg2Pair0Extended + avg2Pair1Extended) * 0.5
   const mid4Extended = (mid2 + mid3Extended) * 0.5 - avg2Extended
-  const mid4 = float32Round(mid4Extended)
+  const mid4 = Math.fround(mid4Extended)
   const mid5Extended =
     cosPi4 * (mixAExtended - mixB - mixC + mixDExtended) - mid4Extended
   const mid6Extended = half[1] * mid2 - half[2] * mid3Extended - mid5Extended
-  const mid6 = float32Round(mid6Extended)
+  const mid6 = Math.fround(mid6Extended)
 
   const avg1Extended = (mix0 + mix2 + mix4 + mix6) * 0.5
   const out1Extended = avg1Extended - output[0]
-  output[1] = float32Round(out1Extended)
+  output[1] = Math.fround(out1Extended)
   const out2Extended = avg2Extended - out1Extended
-  output[2] = float32Round(out2Extended)
+  output[2] = Math.fround(out2Extended)
   const mid7Extended = cosPi4 * (mix0 - mix2 - mix4 + mix6)
-  const mid7 = float32Round(mid7Extended)
+  const mid7 = Math.fround(mid7Extended)
   const mid8Extended = twoCosPi8 * (mix0 - mix6)
-  const mid8 = float32Round(mid8Extended)
-  const mid9 = float32Round(pi8[1] * float32Round(mix2 - mix4))
+  const mid8 = Math.fround(mid8Extended)
+  const mid9 = Math.fround(pi8[1] * Math.fround(mix2 - mix4))
   const mid10Extended = half[1] * mid8 - half[2] * mid9
-  const mid10 = float32Round(mid10Extended)
+  const mid10 = Math.fround(mid10Extended)
   const avg3Extended = (mix1 + mix3 + mix5 + mix7) * 0.5 - avg1Extended
   const out3Extended = avg3Extended - out2Extended
-  output[3] = float32Round(out3Extended)
+  output[3] = Math.fround(out3Extended)
   const mid11Extended = (mid8 + mid9) * 0.5 - avg3Extended
-  const mid11 = float32Round(mid11Extended)
+  const mid11 = Math.fround(mid11Extended)
   const out4Extended = (diff03Extended + diff12) * 0.5 - out3Extended
-  output[4] = float32Round(out4Extended)
+  output[4] = Math.fround(out4Extended)
   const mid12Extended = (mix1 - mix7) * pi8[2]
   const mid13Extended = (mix3 - mix5) * pi8[3]
   const out5Extended = mid11Extended - out4Extended
-  output[5] = float32Round(out5Extended)
+  output[5] = Math.fround(out5Extended)
   const out6Extended = mid4 - out5Extended
-  output[6] = float32Round(out6Extended)
+  output[6] = Math.fround(out6Extended)
   const mid14Extended =
     mid12Extended + mid13Extended - mix1 - mix3 - mix5 - mix7
   const mid14HalfExtended = mid14Extended * 0.5
@@ -320,27 +323,27 @@ function modulate16Band(polyphase, extended, output) {
     half[1] * mid12Extended - half[2] * mid13Extended - mid15Extended
   const mid17Extended = mid14HalfExtended - mid11
   const out7Extended = mid17Extended - output[6]
-  output[7] = float32Round(out7Extended)
+  output[7] = Math.fround(out7Extended)
   const mid18Extended = mid7 - mid17Extended
   const out8Extended = mid0 - out7Extended
-  output[8] = float32Round(out8Extended)
+  output[8] = Math.fround(out8Extended)
   const out9Extended = mid18Extended - out8Extended
-  output[9] = float32Round(out9Extended)
+  output[9] = Math.fround(out9Extended)
   const mid19Extended = mid15Extended - mid18Extended
   const out10Extended = mid5Extended - out9Extended
-  output[10] = float32Round(out10Extended)
+  output[10] = Math.fround(out10Extended)
   const out11Extended = mid19Extended - out10Extended
-  output[11] = float32Round(out11Extended)
+  output[11] = Math.fround(out11Extended)
   const mid20Extended = mid10 - mid19Extended
   const out12Extended = mid1 - out11Extended
-  output[12] = float32Round(out12Extended)
+  output[12] = Math.fround(out12Extended)
   const out13Extended = mid20Extended - out12Extended
-  output[13] = float32Round(out13Extended)
+  output[13] = Math.fround(out13Extended)
   const mid21Extended = mid16Extended - mid20Extended
   const out14Extended = mid6 - out13Extended
-  output[14] = float32Round(out14Extended)
+  output[14] = Math.fround(out14Extended)
   const out15Extended = mid21Extended - out14Extended
-  output[15] = float32Round(out15Extended)
+  output[15] = Math.fround(out15Extended)
 }
 
 /**
@@ -350,6 +353,7 @@ function modulate16Band(polyphase, extended, output) {
  * @param {Float32Array[]} outputBands Caller-owned chronological subband rows.
  * @param {QmfScratch} scratch Reusable component and modulation storage.
  * @returns {Float32Array[]} The completed subband rows.
+ * @nativeUnchecked Native callers supply frame-bounded buffers and indices.
  */
 export function analyzeQmf(input, outputBands, scratch) {
   if (
@@ -446,10 +450,11 @@ export function analyzeQmf(input, outputBands, scratch) {
  *
  * @param {Float32Array[]} inputBands Chronological subband rows.
  * @param {Float32Array} delay Caller-owned component delay ring.
- * @param {number} delayRow Current delay-ring row.
+ * @param {i32} delayRow Current delay-ring row.
  * @param {Float32Array} output Caller-owned interleaved PCM output.
  * @param {QmfScratch} scratch Reusable component and modulation storage.
  * @returns {number} Next delay-ring row.
+ * @nativeUnchecked Native callers supply frame-bounded buffers and indices.
  */
 export function synthesizeQmf(inputBands, delay, delayRow, output, scratch) {
   if (
@@ -507,7 +512,7 @@ export function synthesizeQmf(inputBands, delay, delayRow, output, scratch) {
           const secondRow =
             (delayRow + QMF_SYNTHESIS_DELAY_ROW_OFFSETS[second]) %
             QMF_SYNTHESIS_DELAY_ROWS
-          sum = float32Round(
+          sum = Math.fround(
             delay[
               firstRow * QMF_BANDS + QMF_SYNTHESIS_DELAY_COMPONENTS[first]
             ] *

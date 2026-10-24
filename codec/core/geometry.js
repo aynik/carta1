@@ -5,7 +5,7 @@
 /**
  * Calculate a band's offset in the 512-coefficient spectrum.
  *
- * @param {number} bandIndex
+ * @param {i32} bandIndex
  * @returns {number}
  */
 export function calculateBandOffset(bandIndex) {
@@ -16,7 +16,7 @@ export function calculateBandOffset(bandIndex) {
  * Extract one band from the full coefficient spectrum.
  *
  * @param {Float32Array} coefficients
- * @param {number} bandIndex
+ * @param {i32} bandIndex
  * @returns {Float32Array}
  */
 export function extractBandCoefficients(coefficients, bandIndex) {
