@@ -73,7 +73,9 @@ jobs:
           fail_on_unmatched_files: true
           body: |
             Changes in this release:
-            - Experimental ATRAC1 WME for SP stereo/mono host development. Current WMD API v1 does not support software ATRAC1; see README for the proposed SPS/SPM contract.
+            - Standalone native Carta1 CLI binaries for Linux and macOS, on x64 and ARM64, compiled with Porffor and requiring no Node.js installation.
+            - Each native target passes exact encoded-byte, decoded float32, and WAV/AEA parity checks against the JavaScript codec before publishing.
+            - ATRAC1 WME remains experimental. Current WMD API v1 does not support software ATRAC1; see README for the proposed SPS/SPM contract.
             - Published to npm: https://www.npmjs.com/package/carta1
 
             Release assets include native CLI archives for Linux and macOS (x64 and ARM64), SHA-256 checksums, carta1.wme, the three browser JS bundles, and source maps.
