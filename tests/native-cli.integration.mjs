@@ -147,6 +147,7 @@ test('native WAV/AEA and CLI parity', { timeout: 240_000 }, () => {
       ['--title', 'long native parity'],
       44100 * 20
     )
+    compareCase('bom-title', input, ['--title', '\ufeff日本🎵'], 1041)
     const jsonPaths = ['node', 'native'].map((host) =>
       path.join(directory, `${host}.json`)
     )

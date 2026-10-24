@@ -42,6 +42,11 @@ export class NativeTextEncoder {
 }
 
 export class NativeTextDecoder {
+  constructor(label = 'utf-8', options = {}) {
+    if (label !== 'utf-8') throw new Error('Native host supports only UTF-8')
+    this.ignoreBOM = Boolean(options.ignoreBOM)
+  }
+
   decode(input = new Uint8Array(0)) {
     const bytes = ArrayBuffer.isView(input)
       ? new Uint8Array(input.buffer, input.byteOffset, input.byteLength)
@@ -80,7 +85,8 @@ export class NativeTextDecoder {
         lower = 0x80
         upper = 0xbf
       }
-      if (!(first && point === 0xfeff)) result += String.fromCodePoint(point)
+      if (!(first && point === 0xfeff && !this.ignoreBOM))
+        result += String.fromCodePoint(point)
       first = false
     }
     return result

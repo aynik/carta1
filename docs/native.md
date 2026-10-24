@@ -62,7 +62,7 @@ excluded from the npm package.
 
 `probe:porffor` checks exact encoded bytes and float32 reconstruction bits for
 288 channel frames, public package startup with the native host, and native
-CLI help. `test:native` runs 57 WAV/AEA cases against the actual Node CLI,
+CLI help. `test:native` runs 58 WAV/AEA cases against the actual Node CLI,
 including independent stereo state, 16/24/32-bit input, partial/empty files,
 block modes and bias, UTF-8 titles and paths, JSON data, overwrite behavior,
 invalid input, and a 20-second stereo case that exercises garbage collection.

@@ -98,6 +98,9 @@ describe('native host boundaries', () => {
       expect(new NativeTextDecoder().decode(bytes)).toBe(
         new TextDecoder().decode(bytes)
       )
+      expect(
+        new NativeTextDecoder('utf-8', { ignoreBOM: true }).decode(bytes)
+      ).toBe(new TextDecoder('utf-8', { ignoreBOM: true }).decode(bytes))
     }
   })
 

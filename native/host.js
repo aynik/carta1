@@ -40,7 +40,8 @@ function argumentAt(argIndex) {
   const bytes = new Uint8Array(length)
   const pointer = Porffor.IR.ptr(bytes.buffer)
   Porffor.c`memcpy(MEM + (u32)pointer.val + 8, porf_argv[(int)argIndex.val], (size_t)length);`
-  return new NativeTextDecoder().decode(bytes)
+  // A command-line argument is a string, not a text document: preserve its BOM.
+  return new NativeTextDecoder('utf-8', { ignoreBOM: true }).decode(bytes)
 }
 
 export function argumentsList() {
