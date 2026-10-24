@@ -13,16 +13,18 @@
  */
 
 import { program } from 'commander'
+import { validateModes } from './options.js'
+import { inspectAea } from '../codec/boundary/inspect.js'
 import fs from 'fs'
 import path from 'path'
 import { performance } from 'perf_hooks'
 import cliProgress from 'cli-progress'
 import wav from 'wav'
 
+import { pcmBytesToChannels } from '../codec/boundary/pcm.js'
 import { AudioProcessor } from '../codec/boundary/processor.js'
 import { AeaReader } from '../codec/boundary/reader.js'
-import { AeaFile, validateAeaTitle } from '../codec/boundary/container.js'
-import { deserializeFrame } from '../codec/syntax/frame.js'
+import { validateAeaTitle } from '../codec/boundary/container.js'
 import { EncoderOptions } from '../codec/core/options.js'
 import {
   SAMPLE_RATE,
@@ -67,47 +69,6 @@ function validateTitle(title) {
  * @returns {Array<number>} [returns.modes] - Parsed modes if valid
  * @returns {string} [returns.error] - Error message if invalid
  */
-function validateModes(modes) {
-  if (!modes) {
-    return { valid: true }
-  }
-
-  const parts = modes.split(',')
-  if (parts.length !== 3) {
-    return {
-      valid: false,
-      error: `Modes must have exactly 3 values separated by commas, got ${parts.length}`,
-    }
-  }
-
-  const parsedModes = []
-  const validValues = [
-    [0, 2], // Position 1: 0 or 2
-    [0, 2], // Position 2: 0 or 2
-    [0, 3], // Position 3: 0 or 3
-  ]
-
-  for (let i = 0; i < 3; i++) {
-    const mode = parseInt(parts[i], 10)
-    if (isNaN(mode)) {
-      return {
-        valid: false,
-        error: `Mode at position ${i + 1} is not a number: "${parts[i]}"`,
-      }
-    }
-
-    if (!validValues[i].includes(mode)) {
-      return {
-        valid: false,
-        error: `Mode at position ${i + 1} must be ${validValues[i].join(' or ')}, got ${mode}`,
-      }
-    }
-
-    parsedModes.push(mode)
-  }
-
-  return { valid: true, modes: parsedModes }
-}
 
 /**
  * Progress tracking utility for encoding/decoding operations
@@ -341,42 +302,13 @@ class WavReader {
    * @returns {Float32Array|Array<Float32Array>} Processed frame data
    */
   _processFrameBuffer(frameBuffer, frameSize) {
-    if (this.channels === 1) {
-      const frame = new Float32Array(frameSize)
-      for (let i = 0; i < frameSize; i++) {
-        frame[i] = this._sampleToFloat(frameBuffer, i * (this.bitDepth / 8))
-      }
-      return frame
-    } else {
-      const left = new Float32Array(frameSize)
-      const right = new Float32Array(frameSize)
-      for (let i = 0; i < frameSize; i++) {
-        const offset = i * this.channels * (this.bitDepth / 8)
-        left[i] = this._sampleToFloat(frameBuffer, offset)
-        right[i] = this._sampleToFloat(frameBuffer, offset + this.bitDepth / 8)
-      }
-      return [left, right]
-    }
-  }
-
-  /**
-   * Convert PCM sample to normalized float32 value
-   *
-   * @private
-   * @param {Buffer} buffer - PCM data buffer
-   * @param {number} offset - Byte offset to sample
-   * @returns {number} Normalized float value [-1.0, 1.0]
-   */
-  _sampleToFloat(buffer, offset) {
-    if (this.bitDepth === 16) return buffer.readInt16LE(offset) / 32768.0
-    if (this.bitDepth === 24) {
-      let s =
-        buffer[offset] | (buffer[offset + 1] << 8) | (buffer[offset + 2] << 16)
-      if (s > 0x7fffff) s -= 0x1000000
-      return s / 8388608.0
-    }
-    if (this.bitDepth === 32) return buffer.readInt32LE(offset) / 2147483648.0
-    return 0
+    const channels = pcmBytesToChannels(
+      frameBuffer,
+      this.bitDepth,
+      this.channels,
+      frameSize
+    )
+    return this.channels === 1 ? channels[0] : channels
   }
 }
 
@@ -544,115 +476,20 @@ async function decodeFile(inputFile, outputFile, options) {
  * @throws {Error} If input file is invalid or cannot be read
  */
 async function dumpFile(inputFile, outputFile, options) {
-  const stats = fs.statSync(inputFile)
-
-  if (!options.quiet) {
-    console.log(`${inputFile} (AEA) → ${outputFile} (JSON)`)
-  }
-
-  const handle = await fs.promises.open(inputFile, 'r')
-  const headerBuffer = Buffer.alloc(AEA_HEADER_SIZE)
-  await handle.read(headerBuffer, 0, AEA_HEADER_SIZE, 0)
-
-  let metadata
-  try {
-    metadata = AeaFile.parseHeader(headerBuffer)
-  } catch (err) {
-    throw new Error(`Invalid AEA header: ${err.message}`)
-  }
-
+  const bytes = await fs.promises.readFile(inputFile)
+  if (!options.quiet) console.log(`${inputFile} (AEA) → ${outputFile} (JSON)`)
   const frameCount = Math.floor(
-    (stats.size - AEA_HEADER_SIZE) / SOUND_UNIT_SIZE
+    (bytes.length - AEA_HEADER_SIZE) / SOUND_UNIT_SIZE
   )
-
-  const dump = {
-    file: {
-      path: inputFile,
-      size: stats.size,
-      headerSize: AEA_HEADER_SIZE,
-      dataSize: stats.size - AEA_HEADER_SIZE,
-      expectedDataSize: frameCount * SOUND_UNIT_SIZE,
-      sizeDifference:
-        stats.size - AEA_HEADER_SIZE - frameCount * SOUND_UNIT_SIZE,
-    },
-    header: {
-      magic: Array.from(headerBuffer.slice(0, 4))
-        .map((b) => b.toString(16).padStart(2, '0'))
-        .join(' '),
-      title: metadata.title,
-      frameCount: metadata.frameCount,
-      channelCount: metadata.channelCount,
-      framesPerChannel: metadata.frameCount / metadata.channelCount,
-      duration: ((metadata.frameCount / metadata.channelCount) * 512) / 44100,
-    },
-    frames: [],
-  }
-
   const progress = new ProgressTracker(frameCount, 'Analyzing', options.quiet)
-
   try {
-    let offset = AEA_HEADER_SIZE
-    for (let i = 0; i < frameCount; i++) {
-      const frameBuffer = Buffer.alloc(SOUND_UNIT_SIZE)
-      await handle.read(frameBuffer, 0, SOUND_UNIT_SIZE, offset)
-
-      try {
-        const frame = deserializeFrame(frameBuffer)
-        const frameInfo = {
-          index: i,
-          offset: offset,
-          offsetHex: '0x' + offset.toString(16),
-          nBfu: frame.nBfu,
-          blockModes: frame.blockModes,
-          scaleFactorIndices: Array.from(frame.scaleFactorIndices),
-          wordLengthIndices: Array.from(frame.wordLengthIndices),
-          hasNonZeroScaleFactors: frame.scaleFactorIndices.some((sf) => sf > 0),
-          hasNonZeroWordLengths: frame.wordLengthIndices.some((wl) => wl > 0),
-          hasCoefficients: frame.quantizedCoefficients.some(
-            (coeffs) => coeffs && coeffs.some((c) => c !== 0)
-          ),
-        }
-
-        // Include full coefficient data for first few frames only
-        if (i < 3 || i === frameCount - 1) {
-          frameInfo.quantizedCoefficients = frame.quantizedCoefficients.map(
-            (coeffs) => (coeffs ? Array.from(coeffs) : null)
-          )
-        }
-
-        dump.frames.push(frameInfo)
-      } catch (err) {
-        dump.frames.push({
-          index: i,
-          offset: offset,
-          offsetHex: '0x' + offset.toString(16),
-          error: err.message,
-        })
-      }
-
+    const dump = inspectAea(bytes, inputFile, () =>
       progress.update(SAMPLE_RATE)
-      offset += SOUND_UNIT_SIZE
-    }
+    )
+    await fs.promises.writeFile(outputFile, JSON.stringify(dump, null, 2))
   } finally {
     progress.stop()
-    await handle.close()
   }
-
-  // Add summary statistics
-  dump.summary = {
-    totalFrames: frameCount,
-    validFrames: dump.frames.filter((f) => !f.error).length,
-    errorFrames: dump.frames.filter((f) => f.error).length,
-    silentFrames: dump.frames.filter(
-      (f) => !f.error && !f.hasNonZeroScaleFactors && !f.hasNonZeroWordLengths
-    ).length,
-    activeFrames: dump.frames.filter(
-      (f) => !f.error && (f.hasNonZeroScaleFactors || f.hasNonZeroWordLengths)
-    ).length,
-  }
-
-  const jsonOutput = JSON.stringify(dump, null, 2)
-  await fs.promises.writeFile(outputFile, jsonOutput)
 }
 
 /**

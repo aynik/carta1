@@ -12,6 +12,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  native:
+    uses: ./.github/workflows/native.yml
+
   check:
     runs-on: ubuntu-latest
 

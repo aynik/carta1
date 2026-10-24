@@ -1,0 +1,10 @@
+{
+  "release": "alpha-19",
+  "version": "alpha 19 (0c135ce 2026-10-21)",
+  "assets": {
+    "darwin-arm64": "2009205e80f1318f3ed610bdf591ac6054c0314a72ea546115adf2e8b168b5e1",
+    "darwin-x64": "ff0051194a6cfadd8c5c3f36e571ea72630d66d14fa40f1b5fc2af67d8884d0b",
+    "linux-arm64": "61cb8fac10ed0f2fc87e216091f13f08183db9f110c73a7adc8e7b83787011fd",
+    "linux-x64": "147d50f9ac298c264c8404cedeb060619de655c6b6c37227714e9ef86e9b7d30"
+  }
+}

@@ -34,6 +34,11 @@ npm ci
 npm run check
 ```
 
+[Native CLI archives](docs/native.md) for Linux and macOS (x64 and ARM64) are
+built with Porffor and attached to GitHub Releases after exact WAV/AEA parity
+checks against the Node CLI. They run without Node.js. See the native guide
+for local builds, supported input formats, and verification.
+
 ## CLI
 
 Run the installed executable directly, or use `npx carta1` from a project that
@@ -202,7 +207,6 @@ implementation used to understand the ATRAC1 format and codec behavior.
 
 ISC
 
-
 ## Experimental Web MiniDisc encoder plugin
 
 `npm run build` also emits `dist/carta1.wme`, alongside the three existing
@@ -224,10 +228,10 @@ with the usual `init`, `deinit`, `getSupportFor`, `transcode`, and progress hook
 It adds two **proposed, nonstandard** export codec names, using the host's
 existing recording-mode names:
 
-| `exportParams.format` | PCM channels | Output |
-| --- | --- | --- |
-| `{ codec: 'SPS', bitrate: 292 }` | 2 | ATRAC1 stereo SP |
-| `{ codec: 'SPM', bitrate: 146 }` | 1 | ATRAC1 mono SP |
+| `exportParams.format`            | PCM channels | Output           |
+| -------------------------------- | ------------ | ---------------- |
+| `{ codec: 'SPS', bitrate: 292 }` | 2            | ATRAC1 stereo SP |
+| `{ codec: 'SPM', bitrate: 146 }` | 1            | ATRAC1 mono SP   |
 
 Bitrates are nominal kbps; ATRAC1 uses 212-byte sound units per channel per
 512 samples at 44.1 kHz. The host's built-in FFmpeg decodes/resamples sources

@@ -1,0 +1,54 @@
+name: Native binaries
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            target: linux-x64
+          - runner: ubuntu-24.04-arm
+            target: linux-arm64
+          - runner: macos-14
+            target: darwin-arm64
+          - runner: macos-15-intel
+            target: darwin-x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20.16.0'
+          cache: npm
+      - run: npm ci
+      - name: Install pinned Porffor with SHA-256 verification
+        run: node build/install-porffor.js "$RUNNER_TEMP/porffor"
+      - name: Build native CLI
+        run: npm run build:native
+        env:
+          PORFFOR: ${{ runner.temp }}/porffor/porf
+      - name: Check exact frame reconstruction and public host initialization
+        run: npm run probe:porffor
+        env:
+          PORFFOR: ${{ runner.temp }}/porffor/porf
+      - name: Compare native WAV/AEA files with Node CLI
+        run: npm run test:native
+      - name: Package tested binary
+        run: npm run package:native
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.target }}
+          path: |
+            dist/native/*.tar.gz
+            dist/native/*.sha256
+          if-no-files-found: error
+          overwrite: true

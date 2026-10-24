@@ -13,7 +13,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  native:
+    uses: ./.github/workflows/native.yml
+
   publish:
+    needs: native
     runs-on: ubuntu-latest
 
     steps:
@@ -46,10 +50,19 @@ jobs:
         id: release
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
+      - name: Download tested native archives
+        uses: actions/download-artifact@v4
+        with:
+          pattern: native-*
+          path: dist/native
+          merge-multiple: true
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
+            dist/native/*.tar.gz
+            dist/native/*.sha256
             dist/carta1.wme
             dist/carta1.min.js
             dist/carta1.min.js.map
@@ -63,7 +76,7 @@ jobs:
             - Experimental ATRAC1 WME for SP stereo/mono host development. Current WMD API v1 does not support software ATRAC1; see README for the proposed SPS/SPM contract.
             - Published to npm: https://www.npmjs.com/package/carta1
 
-            Release assets include carta1.wme, the three browser JS bundles, and source maps.
+            Release assets include native CLI archives for Linux and macOS (x64 and ARM64), SHA-256 checksums, carta1.wme, the three browser JS bundles, and source maps.
 
             CDN URLs (this version):
             - https://unpkg.com/carta1@${{ steps.release.outputs.version }}/dist/carta1.min.js

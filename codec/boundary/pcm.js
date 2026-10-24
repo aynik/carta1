@@ -26,6 +26,92 @@ function writeFourCc(output, offset, value) {
   }
 }
 
+/** Convert interleaved signed little-endian PCM into normalized channels. */
+export function pcmBytesToChannels(bytes, bitDepth, channelCount, sampleCount) {
+  if (![16, 24, 32].includes(bitDepth)) {
+    throw new RangeError(`Unsupported PCM bit depth: ${bitDepth}`)
+  }
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  const channels = Array.from(
+    { length: channelCount },
+    () => new Float32Array(sampleCount)
+  )
+  let offset = 0
+  for (let sample = 0; sample < sampleCount; sample++) {
+    for (const channel of channels) {
+      let value
+      if (bitDepth === 16) value = view.getInt16(offset, true) / 32768
+      else if (bitDepth === 32) value = view.getInt32(offset, true) / 2147483648
+      else {
+        let integer =
+          bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16)
+        if (integer > 0x7fffff) integer -= 0x1000000
+        value = integer / 8388608
+      }
+      channel[sample] = value
+      offset += bitDepth / 8
+    }
+  }
+  return channels
+}
+
+/** Read a RIFF/WAVE byte image. Native file I/O stays outside this boundary. */
+export function parsePcmWave(bytes) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  const fourCc = (offset) =>
+    String.fromCharCode(...bytes.subarray(offset, offset + 4))
+  if (bytes.length < 12 || fourCc(0) !== 'RIFF' || fourCc(8) !== 'WAVE') {
+    throw new Error('Invalid RIFF/WAVE file')
+  }
+  const end = view.getUint32(4, true) + 8
+  if (end > bytes.length || end < 12)
+    throw new Error('Truncated RIFF/WAVE file')
+  let format = null
+  let data = null
+  for (let offset = 12; offset + 8 <= end;) {
+    const size = view.getUint32(offset + 4, true)
+    const start = offset + 8
+    if (start + size > end) throw new Error('Truncated WAVE chunk')
+    if (fourCc(offset) === 'fmt ') {
+      if (size < 16) throw new Error('Invalid WAVE format chunk')
+      format = {
+        code: view.getUint16(start, true),
+        channelCount: view.getUint16(start + 2, true),
+        sampleRate: view.getUint32(start + 4, true),
+        blockAlign: view.getUint16(start + 12, true),
+        bitDepth: view.getUint16(start + 14, true),
+      }
+    } else if (fourCc(offset) === 'data' && data === null)
+      data = bytes.subarray(start, start + size)
+    offset = start + size + (size & 1)
+  }
+  if (!format || data === null)
+    throw new Error('WAVE requires fmt and data chunks')
+  const { code, channelCount, sampleRate, blockAlign, bitDepth } = format
+  if (code !== 1 || ![16, 24, 32].includes(bitDepth)) {
+    throw new Error('WAVE input must be signed 16, 24, or 32-bit integer PCM')
+  }
+  if (channelCount !== 1 && channelCount !== 2)
+    throw new Error(`Unsupported channel count: ${channelCount}`)
+  if (
+    sampleRate < 1 ||
+    blockAlign !== (channelCount * bitDepth) / 8 ||
+    data.length % blockAlign !== 0
+  ) {
+    throw new Error('Invalid WAVE sample layout')
+  }
+  return {
+    channels: pcmBytesToChannels(
+      data,
+      bitDepth,
+      channelCount,
+      data.length / blockAlign
+    ),
+    sampleRate,
+    bitDepth,
+  }
+}
+
 /**
  * Join complete PCM frames into one channel.
  *

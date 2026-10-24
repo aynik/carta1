@@ -73,20 +73,6 @@ function createDummyFrame() {
 }
 
 /**
- * Collect an async iterable.
- *
- * @param {AsyncIterable} frames
- * @returns {Promise<Array>}
- */
-async function collect(frames) {
-  const output = []
-  for await (const frame of frames) {
-    output.push(frame)
-  }
-  return output
-}
-
-/**
  * Encode chronological PCM frames.
  */
 export class AeaStreamingEncoder {
@@ -115,22 +101,21 @@ export class AeaStreamingEncoder {
     if (this.finalized) {
       throw new Error('ATRAC1 encoder has already been finalized')
     }
-    for await (const frame of frames) {
-      validateChunk(frame, this.channelCount)
-      if (this.channelCount === 1) {
-        yield this.leftEncoder(frame)
-      } else {
-        const [left, right] = frame
-        yield this.leftEncoder(left)
-        yield this.rightEncoder(right)
-      }
+    for await (const frame of frames) yield* this.push(frame)
+  }
 
-      this.sampleCount += SAMPLES_PER_FRAME
-
-      if (this.onProgress) {
-        this.onProgress(this.frameIndex++)
-      }
-    }
+  /** Encode one chronological frame for either an async or synchronous host. */
+  push(frame) {
+    if (this.finalized)
+      throw new Error('ATRAC1 encoder has already been finalized')
+    validateChunk(frame, this.channelCount)
+    const encoded =
+      this.channelCount === 1
+        ? [this.leftEncoder(frame)]
+        : [this.leftEncoder(frame[0]), this.rightEncoder(frame[1])]
+    this.sampleCount += SAMPLES_PER_FRAME
+    if (this.onProgress) this.onProgress(this.frameIndex++)
+    return encoded
   }
 
   /**
@@ -184,20 +169,27 @@ export class AeaStreamingDecoder {
    */
   async *frames(frames) {
     for await (const frame of frames) {
-      if (this.channelCount === 1) {
-        yield this.trim(this.leftDecoder(frame))
-        this.reportProgress()
-      } else if (this.leftFrame === null) {
-        this.leftFrame = frame
-      } else {
-        yield this.trim([
-          this.leftDecoder(this.leftFrame),
-          this.rightDecoder(frame),
-        ])
-        this.leftFrame = null
-        this.reportProgress()
-      }
+      const decoded = this.push(frame)
+      if (decoded !== null) yield decoded
     }
+  }
+
+  /** Decode one sound unit, returning null until a stereo pair is complete. */
+  push(frame) {
+    let decoded
+    if (this.channelCount === 1) decoded = this.trim(this.leftDecoder(frame))
+    else if (this.leftFrame === null) {
+      this.leftFrame = frame
+      return null
+    } else {
+      decoded = this.trim([
+        this.leftDecoder(this.leftFrame),
+        this.rightDecoder(frame),
+      ])
+      this.leftFrame = null
+    }
+    this.reportProgress()
+    return decoded
   }
 
   /**
@@ -294,8 +286,9 @@ export async function encodeAeaPcm(channels, options = {}) {
     channelCount: channels.length,
     encoderOptions: new EncoderOptions(encoderValues),
   })
-  const frames = encoder.frames(frameBufferToFrames(channels))
-  const encoded = await collect(frames)
+  const encoded = []
+  for (const frame of frameBufferToFrames(channels))
+    encoded.push(...encoder.push(frame))
   encoded.push(...encoder.finish())
 
   const header = AeaFile.createHeader(
@@ -339,16 +332,17 @@ export async function decodeAeaPcm(input) {
     primingSampleCount: info.primingSampleCount,
     sampleCount: info.sampleCount,
   })
-  const frames = (async function* () {
-    for (
-      let offset = AEA_HEADER_SIZE;
-      offset + SOUND_UNIT_SIZE <= bytes.length;
-      offset += SOUND_UNIT_SIZE
-    ) {
-      yield deserializeFrame(bytes.subarray(offset, offset + SOUND_UNIT_SIZE))
-    }
-  })()
-  const decoded = await collect(decoder.frames(frames))
+  const decoded = []
+  for (
+    let offset = AEA_HEADER_SIZE;
+    offset + SOUND_UNIT_SIZE <= bytes.length;
+    offset += SOUND_UNIT_SIZE
+  ) {
+    const frame = decoder.push(
+      deserializeFrame(bytes.subarray(offset, offset + SOUND_UNIT_SIZE))
+    )
+    if (frame !== null) decoded.push(frame)
+  }
   decoded.push(...decoder.finish())
 
   if (info.channelCount === 1) {
