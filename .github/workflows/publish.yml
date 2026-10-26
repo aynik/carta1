@@ -59,11 +59,7 @@ jobs:
             dist/carta1-worker-interface.min.js.map
           fail_on_unmatched_files: true
           body: |
-            Changes in this release:
-            - Experimental ATRAC1 WME for SP stereo/mono host development. Current WMD API v1 does not support software ATRAC1; see README for the proposed SPS/SPM contract.
-            - Published to npm: https://www.npmjs.com/package/carta1
-
-            Release assets include carta1.wme, the three browser JS bundles, and source maps.
+            Published to npm: https://www.npmjs.com/package/carta1
 
             CDN URLs (this version):
             - https://unpkg.com/carta1@${{ steps.release.outputs.version }}/dist/carta1.min.js
