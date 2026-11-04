@@ -1,358 +1,22 @@
-/** Configurable polyphase quadrature-mirror analysis and synthesis. */
+/** ATRAC1 two-band polyphase quadrature-mirror analysis and synthesis. */
 
 import {
-  QMF_ANALYSIS_MODULATION_SCALE,
-  QMF_ANALYSIS_START_SAMPLE,
-  QMF_ANALYSIS_STEP_SAMPLES,
   QMF_ANALYSIS_TERMS,
   QMF_ANALYSIS_WINDOW_SAMPLES,
   QMF_BANDS,
   QMF_SYNTHESIS_DELAY_ROWS,
   QMF_SYNTHESIS_TERMS,
 } from '../core/constants.js'
-import {
-  QMF_ANALYSIS_HALF_BUTTERFLY_SCALES,
-  QMF_ANALYSIS_ODD_PI_OVER_16_COSINES,
-  QMF_ANALYSIS_ODD_PI_OVER_32_COSINES,
-  QMF_ANALYSIS_ODD_PI_OVER_64_COSINES,
-  QMF_ANALYSIS_PI_OVER_8_BUTTERFLY_SCALES,
-  QMF_ANALYSIS_FILTER_COEFFICIENTS,
-  QMF_ANALYSIS_MODULATION_COEFFICIENTS,
-  QMF_ANALYSIS_SAMPLE_OFFSETS,
-  QMF_SYNTHESIS_DELAY_COMPONENTS,
-  QMF_SYNTHESIS_DELAY_ROW_OFFSETS,
-  QMF_SYNTHESIS_FILTER_COEFFICIENTS,
-  QMF_SYNTHESIS_MODULATION_COEFFICIENTS,
-} from '../core/tables.js'
+import { QMF_EVEN, QMF_ODD } from '../core/tables.js'
 
 /**
- * @typedef {object} QmfScratch
- * @property {Float32Array} polyphase - Filter components.
- * @property {Float64Array} extended - Extended-precision components.
- * @property {Float32Array} bands - Modulated subband samples.
- */
-
-/**
- * Preserve the reference spill order of the native sixteen-band polyphase sum.
- * Other supported widths use the dense configurable path below.
+ * Transform a window of samples into two chronological subband rows.
+ * The input includes the preceding 46 samples of history.
  *
  * @param {Float32Array} input
- * @param {i32} inputOffset
- * @param {Float32Array} accumulator
- * @param {Float64Array} extended
- */
-function filter16Band(input, inputOffset, accumulator, extended) {
-  const c = QMF_ANALYSIS_FILTER_COEFFICIENTS
-
-  for (let component = 0; component < 16; component++) {
-    const coefficientOffset = component * QMF_ANALYSIS_TERMS
-    const firstSample = component < 8 ? component : component + 8
-    const secondSample = component < 8 ? 15 - component : 39 - component
-    const firstProduct = input[inputOffset + firstSample] * c[coefficientOffset]
-    accumulator[component] = Math.fround(
-      input[inputOffset + secondSample] * c[coefficientOffset + 1] +
-        (component % 4 === 0 ? Math.fround(firstProduct) : firstProduct)
-    )
-  }
-
-  let extended7 = accumulator[7]
-  let extended8 = accumulator[8]
-  let extended10 = accumulator[10]
-  let extended11 = accumulator[11]
-  let extended12 = accumulator[12]
-  let extended13 = accumulator[13]
-  let extended14 = accumulator[14]
-  let extended15 = accumulator[15]
-
-  for (let segment = 1; segment < 12; segment++) {
-    const inputBase = inputOffset + segment * 32
-    const term = segment * 2
-
-    const product0 = Math.fround(input[inputBase] * c[term])
-    accumulator[0] = Math.fround(
-      accumulator[0] + product0 + input[inputBase + 15] * c[term + 1]
-    )
-    accumulator[1] = Math.fround(
-      input[inputBase + 1] * c[QMF_ANALYSIS_TERMS + term] +
-        Math.fround(
-          input[inputBase + 14] * c[QMF_ANALYSIS_TERMS + term + 1] +
-            accumulator[1]
-        )
-    )
-    const product2 = Math.fround(
-      input[inputBase + 2] * c[QMF_ANALYSIS_TERMS * 2 + term]
-    )
-    accumulator[2] = Math.fround(
-      accumulator[2] +
-        product2 +
-        input[inputBase + 13] * c[QMF_ANALYSIS_TERMS * 2 + term + 1]
-    )
-    accumulator[3] = Math.fround(
-      accumulator[3] +
-        input[inputBase + 3] * c[QMF_ANALYSIS_TERMS * 3 + term] +
-        input[inputBase + 12] * c[QMF_ANALYSIS_TERMS * 3 + term + 1]
-    )
-    const product4 = Math.fround(
-      input[inputBase + 4] * c[QMF_ANALYSIS_TERMS * 4 + term]
-    )
-    const product4Sum =
-      product4 + input[inputBase + 11] * c[QMF_ANALYSIS_TERMS * 4 + term + 1]
-    accumulator[4] = Math.fround(accumulator[4] + product4Sum)
-    accumulator[5] = Math.fround(
-      input[inputBase + 5] * c[QMF_ANALYSIS_TERMS * 5 + term] +
-        Math.fround(
-          input[inputBase + 10] * c[QMF_ANALYSIS_TERMS * 5 + term + 1] +
-            accumulator[5]
-        )
-    )
-    const product6 = Math.fround(
-      input[inputBase + 6] * c[QMF_ANALYSIS_TERMS * 6 + term]
-    )
-    accumulator[6] = Math.fround(
-      accumulator[6] +
-        product6 +
-        input[inputBase + 9] * c[QMF_ANALYSIS_TERMS * 6 + term + 1]
-    )
-    extended7 =
-      accumulator[7] +
-      (input[inputBase + 7] * c[QMF_ANALYSIS_TERMS * 7 + term] +
-        input[inputBase + 8] * c[QMF_ANALYSIS_TERMS * 7 + term + 1])
-    accumulator[7] = Math.fround(extended7)
-
-    extended8 =
-      input[inputBase + 31] * c[QMF_ANALYSIS_TERMS * 8 + term + 1] +
-      input[inputBase + 16] * c[QMF_ANALYSIS_TERMS * 8 + term] +
-      accumulator[8]
-    accumulator[8] = Math.fround(extended8)
-    accumulator[9] = Math.fround(
-      input[inputBase + 17] * c[QMF_ANALYSIS_TERMS * 9 + term] +
-        Math.fround(
-          input[inputBase + 30] * c[QMF_ANALYSIS_TERMS * 9 + term + 1] +
-            accumulator[9]
-        )
-    )
-    extended10 =
-      accumulator[10] +
-      (input[inputBase + 18] * c[QMF_ANALYSIS_TERMS * 10 + term] +
-        input[inputBase + 29] * c[QMF_ANALYSIS_TERMS * 10 + term + 1])
-    accumulator[10] = Math.fround(extended10)
-    extended11 =
-      accumulator[11] +
-      (input[inputBase + 19] * c[QMF_ANALYSIS_TERMS * 11 + term] +
-        input[inputBase + 28] * c[QMF_ANALYSIS_TERMS * 11 + term + 1])
-    accumulator[11] = Math.fround(extended11)
-    extended12 =
-      accumulator[12] +
-      (input[inputBase + 20] * c[QMF_ANALYSIS_TERMS * 12 + term] +
-        input[inputBase + 27] * c[QMF_ANALYSIS_TERMS * 12 + term + 1])
-    accumulator[12] = Math.fround(extended12)
-    extended13 =
-      accumulator[13] +
-      (input[inputBase + 21] * c[QMF_ANALYSIS_TERMS * 13 + term] +
-        input[inputBase + 26] * c[QMF_ANALYSIS_TERMS * 13 + term + 1])
-    accumulator[13] = Math.fround(extended13)
-    extended14 =
-      accumulator[14] +
-      (input[inputBase + 22] * c[QMF_ANALYSIS_TERMS * 14 + term] +
-        input[inputBase + 25] * c[QMF_ANALYSIS_TERMS * 14 + term + 1])
-    accumulator[14] = Math.fround(extended14)
-    const product15 =
-      input[inputBase + 24] * c[QMF_ANALYSIS_TERMS * 15 + term + 1] +
-      input[inputBase + 23] * c[QMF_ANALYSIS_TERMS * 15 + term]
-    extended15 = accumulator[15] + product15
-    accumulator[15] = Math.fround(extended15)
-  }
-
-  extended[7] = extended7
-  extended[10] = extended10
-  extended[11] = extended11
-  extended[12] = extended12
-  extended[13] = extended13
-  extended[14] = extended14
-  extended[15] = extended15
-}
-
-/**
- * Preserve the reference factorization and spill order of 16-band modulation.
- *
- * @param {Float32Array} polyphase
- * @param {Float64Array} extended
- * @param {Float32Array} output
- */
-function modulate16Band(polyphase, extended, output) {
-  const half = QMF_ANALYSIS_HALF_BUTTERFLY_SCALES
-  const cos32 = QMF_ANALYSIS_ODD_PI_OVER_32_COSINES
-  const cos16 = QMF_ANALYSIS_ODD_PI_OVER_16_COSINES
-  const cos64 = QMF_ANALYSIS_ODD_PI_OVER_64_COSINES
-  const pi8 = QMF_ANALYSIS_PI_OVER_8_BUTTERFLY_SCALES
-
-  const twoCosPi8 = pi8[0]
-  const cosPi4 = half[0]
-  const twoCosPi32 = cos32[0]
-  const twoCosPi16 = cos16[0]
-
-  const rotated7Extended = extended[7] * cos64[0]
-  const rotated0Extended = polyphase[0] * cos64[7]
-  const rotated13Extended = extended[13] * cos64[13]
-  const rotated7 = Math.fround(rotated7Extended)
-  const rotated5 = Math.fround(polyphase[5] * cos64[2])
-  const rotated6Extended = polyphase[6] * cos64[1]
-  const rotated6 = Math.fround(rotated6Extended)
-  const rotated4Extended = polyphase[4] * cos64[3]
-  const rotated4 = Math.fround(rotated4Extended)
-  const rotated3 = Math.fround(polyphase[3] * cos64[4])
-  const rotated3Extended = rotated3
-  const rotated2 = Math.fround(polyphase[2] * cos64[5])
-  const rotated0 = Math.fround(rotated0Extended)
-  const rotated1Extended = polyphase[1] * cos64[6]
-  const rotated8Extended = polyphase[8] * cos64[8]
-  const rotated8 = Math.fround(rotated8Extended)
-  const rotated14Extended = extended[14] * cos64[14]
-  const rotated14 = Math.fround(rotated14Extended)
-  const rotated15Extended = extended[15] * cos64[15]
-  const rotated9Extended = polyphase[9] * cos64[9]
-  const rotated9 = Math.fround(rotated9Extended)
-  const rotated13 = Math.fround(rotated13Extended)
-  const rotated10Extended = extended[10] * cos64[10]
-  const rotated10 = Math.fround(rotated10Extended)
-  const rotated11Extended = extended[11] * cos64[11]
-  const rotated11 = Math.fround(rotated11Extended)
-  const rotated12Extended = extended[12] * cos64[12]
-
-  const sum0Extended = rotated0 + rotated8 + (rotated7 + rotated15Extended)
-  const mix0Term0Extended = (rotated7 - rotated15Extended) * twoCosPi32
-  const mix0Term1Extended = (rotated0 - rotated8) * cos32[7]
-  const mix0Extended = mix0Term0Extended + mix0Term1Extended
-  const mix0 = Math.fround(mix0Extended)
-  const mixASum0Extended = rotated7 + rotated15Extended
-  const mixASum1Extended = rotated0 + rotated8
-  const mixAExtended = twoCosPi16 * (mixASum0Extended - mixASum1Extended)
-  const mix1 = Math.fround(twoCosPi16 * (mix0Term0Extended - mix0Term1Extended))
-
-  const sum1Extended = rotated14 + rotated1Extended + (rotated6 + rotated9)
-  const sum1Float32 = Math.fround(sum1Extended)
-  const mix2Term0Extended = (rotated1Extended - rotated9) * cos32[6]
-  const mixBInnerExtended = rotated6 + rotated14 - rotated1Extended - rotated9
-  const mixBInnerFloat32 = Math.fround(mixBInnerExtended)
-  const mixBExtended = cos16[1] * mixBInnerFloat32
-  const mixB = Math.fround(mixBExtended)
-  const mix2Term1Extended = Math.fround(rotated6 - rotated14) * cos32[1]
-  const mix2 = Math.fround(mix2Term1Extended + mix2Term0Extended)
-  const mix3 = Math.fround(cos16[1] * (mix2Term1Extended - mix2Term0Extended))
-
-  const sum2Pair0Extended = rotated5 + rotated13
-  const sum2Pair1Extended = rotated2 + rotated10
-  const sum2Extended = sum2Pair0Extended + sum2Pair1Extended
-  const sum2Float32 = Math.fround(sum2Extended)
-  const mixCInnerExtended = sum2Pair0Extended - rotated2 - rotated10
-  const mixCInnerFloat32 = Math.fround(mixCInnerExtended)
-  const mixCExtended = cos16[2] * mixCInnerFloat32
-  const mixC = Math.fround(mixCExtended)
-  const mix4Term0Extended = (rotated5 - rotated13) * cos32[2]
-  const mix4Term1Extended = (rotated2 - rotated10) * cos32[5]
-  const mix4 = Math.fround(mix4Term0Extended + mix4Term1Extended)
-  const mix5 = Math.fround(cos16[2] * (mix4Term0Extended - mix4Term1Extended))
-
-  const sum3Extended =
-    rotated3 + rotated4 + rotated11Extended + rotated12Extended
-  const mix6Term0Extended = (rotated4 - rotated12Extended) * cos32[3]
-  const mixDInnerExtended =
-    rotated4 + rotated12Extended - rotated3Extended - rotated11Extended
-  const mixDExtended = cos16[3] * mixDInnerExtended
-  const mix6Term1Extended = (rotated3Extended - rotated11) * cos32[4]
-  const mix6 = Math.fround(mix6Term0Extended + mix6Term1Extended)
-  const mix6Term0SpilledExtended = Math.fround(mix6Term0Extended)
-  const mix7 = Math.fround(
-    cos16[3] * (mix6Term0SpilledExtended - mix6Term1Extended)
-  )
-
-  const sumAllExtended = sum0Extended + sum1Float32 + sum2Float32 + sum3Extended
-  const out0Extended = sumAllExtended * 0.5
-  output[0] = Math.fround(out0Extended)
-  const mid0Extended =
-    cosPi4 * (sum0Extended - sum1Float32 - sum2Float32 + sum3Extended)
-  const mid0 = Math.fround(mid0Extended)
-  const diff03Extended = (sum0Extended - sum3Extended) * twoCosPi8
-  const diff12Extended = Math.fround(sum1Float32 - sum2Float32) * pi8[1]
-  const diff12 = Math.fround(diff12Extended)
-  const mid1Extended = half[1] * diff03Extended - half[2] * diff12
-  const mid1 = Math.fround(mid1Extended)
-  const mid2Extended = (mixAExtended - mixDExtended) * pi8[2]
-  const mid2 = Math.fround(mid2Extended)
-  const mid3Extended = (mixB - mixC) * pi8[3]
-  const avg2Pair0Extended = mixB + mixC
-  const avg2Pair1Extended = mixAExtended + mixDExtended
-  const avg2Extended = (avg2Pair0Extended + avg2Pair1Extended) * 0.5
-  const mid4Extended = (mid2 + mid3Extended) * 0.5 - avg2Extended
-  const mid4 = Math.fround(mid4Extended)
-  const mid5Extended =
-    cosPi4 * (mixAExtended - mixB - mixC + mixDExtended) - mid4Extended
-  const mid6Extended = half[1] * mid2 - half[2] * mid3Extended - mid5Extended
-  const mid6 = Math.fround(mid6Extended)
-
-  const avg1Extended = (mix0 + mix2 + mix4 + mix6) * 0.5
-  const out1Extended = avg1Extended - output[0]
-  output[1] = Math.fround(out1Extended)
-  const out2Extended = avg2Extended - out1Extended
-  output[2] = Math.fround(out2Extended)
-  const mid7Extended = cosPi4 * (mix0 - mix2 - mix4 + mix6)
-  const mid7 = Math.fround(mid7Extended)
-  const mid8Extended = twoCosPi8 * (mix0 - mix6)
-  const mid8 = Math.fround(mid8Extended)
-  const mid9 = Math.fround(pi8[1] * Math.fround(mix2 - mix4))
-  const mid10Extended = half[1] * mid8 - half[2] * mid9
-  const mid10 = Math.fround(mid10Extended)
-  const avg3Extended = (mix1 + mix3 + mix5 + mix7) * 0.5 - avg1Extended
-  const out3Extended = avg3Extended - out2Extended
-  output[3] = Math.fround(out3Extended)
-  const mid11Extended = (mid8 + mid9) * 0.5 - avg3Extended
-  const mid11 = Math.fround(mid11Extended)
-  const out4Extended = (diff03Extended + diff12) * 0.5 - out3Extended
-  output[4] = Math.fround(out4Extended)
-  const mid12Extended = (mix1 - mix7) * pi8[2]
-  const mid13Extended = (mix3 - mix5) * pi8[3]
-  const out5Extended = mid11Extended - out4Extended
-  output[5] = Math.fround(out5Extended)
-  const out6Extended = mid4 - out5Extended
-  output[6] = Math.fround(out6Extended)
-  const mid14Extended =
-    mid12Extended + mid13Extended - mix1 - mix3 - mix5 - mix7
-  const mid14HalfExtended = mid14Extended * 0.5
-  const mid15Extended = cosPi4 * (mix1 - mix3 - mix5 + mix7) - mid14HalfExtended
-  const mid16Extended =
-    half[1] * mid12Extended - half[2] * mid13Extended - mid15Extended
-  const mid17Extended = mid14HalfExtended - mid11
-  const out7Extended = mid17Extended - output[6]
-  output[7] = Math.fround(out7Extended)
-  const mid18Extended = mid7 - mid17Extended
-  const out8Extended = mid0 - out7Extended
-  output[8] = Math.fround(out8Extended)
-  const out9Extended = mid18Extended - out8Extended
-  output[9] = Math.fround(out9Extended)
-  const mid19Extended = mid15Extended - mid18Extended
-  const out10Extended = mid5Extended - out9Extended
-  output[10] = Math.fround(out10Extended)
-  const out11Extended = mid19Extended - out10Extended
-  output[11] = Math.fround(out11Extended)
-  const mid20Extended = mid10 - mid19Extended
-  const out12Extended = mid1 - out11Extended
-  output[12] = Math.fround(out12Extended)
-  const out13Extended = mid20Extended - out12Extended
-  output[13] = Math.fround(out13Extended)
-  const mid21Extended = mid16Extended - mid20Extended
-  const out14Extended = mid6 - out13Extended
-  output[14] = Math.fround(out14Extended)
-  const out15Extended = mid21Extended - out14Extended
-  output[15] = Math.fround(out15Extended)
-}
-
-/**
- * Transform one complete time window into caller-owned QMF subband rows.
- *
- * @param {Float32Array} input Current samples preceded by the required history.
- * @param {Float32Array[]} outputBands Caller-owned chronological subband rows.
- * @param {QmfScratch} scratch Reusable component and modulation storage.
- * @returns {Float32Array[]} The completed subband rows.
+ * @param {Float32Array[]} outputBands
+ * @param {object} scratch Reusable QMF storage.
+ * @returns {Float32Array[]}
  * @nativeUnchecked Native callers supply frame-bounded buffers and indices.
  */
 export function analyzeQmf(input, outputBands, scratch) {
@@ -373,86 +37,33 @@ export function analyzeQmf(input, outputBands, scratch) {
 
   const sampleCount = outputBands[0].length
   const requiredSamples =
-    QMF_ANALYSIS_START_SAMPLE +
-    Math.max(0, sampleCount - 1) * QMF_ANALYSIS_STEP_SAMPLES +
-    QMF_ANALYSIS_WINDOW_SAMPLES
+    Math.max(0, sampleCount - 1) * QMF_BANDS + QMF_ANALYSIS_WINDOW_SAMPLES
   if (input.length < requiredSamples) {
     throw new RangeError('QMF analysis window is incomplete')
   }
 
-  const { polyphase, extended, bands } = scratch
-
   for (let sample = 0; sample < sampleCount; sample++) {
-    const inputOffset =
-      QMF_ANALYSIS_START_SAMPLE + sample * QMF_ANALYSIS_STEP_SAMPLES
-    if (QMF_BANDS === 2) {
-      for (let component = 0; component < QMF_BANDS; component++) {
-        const termOffset = component * QMF_ANALYSIS_TERMS
-        let sum = 0
-        for (let term = 0; term < QMF_ANALYSIS_TERMS; term++) {
-          const index = termOffset + term
-          sum +=
-            input[inputOffset + QMF_ANALYSIS_SAMPLE_OFFSETS[index]] *
-            QMF_ANALYSIS_FILTER_COEFFICIENTS[index]
-        }
-        extended[component] = sum
-      }
-      for (let band = 0; band < QMF_BANDS; band++) {
-        const coefficientOffset = band * QMF_BANDS
-        let sum = 0
-        for (let component = 0; component < QMF_BANDS; component++) {
-          sum +=
-            extended[component] *
-            QMF_ANALYSIS_MODULATION_COEFFICIENTS[coefficientOffset + component]
-        }
-        outputBands[band][sample] = sum * QMF_ANALYSIS_MODULATION_SCALE
-      }
-      continue
+    const offset = sample * 2
+    let even = 0
+    let odd = 0
+    for (let term = 0; term < QMF_ANALYSIS_TERMS; term++) {
+      even += input[offset + 47 - term * 2] * QMF_EVEN[term]
+      odd += input[offset + 46 - term * 2] * QMF_ODD[term]
     }
-    if (QMF_BANDS === 16) {
-      filter16Band(input, inputOffset, polyphase, extended)
-      modulate16Band(polyphase, extended, bands)
-      for (let band = 0; band < QMF_BANDS; band++) {
-        outputBands[band][sample] = bands[band]
-      }
-      continue
-    }
-
-    for (let component = 0; component < QMF_BANDS; component++) {
-      const termOffset = component * QMF_ANALYSIS_TERMS
-      let sum = 0
-      for (let term = 0; term < QMF_ANALYSIS_TERMS; term++) {
-        const index = termOffset + term
-        sum +=
-          input[inputOffset + QMF_ANALYSIS_SAMPLE_OFFSETS[index]] *
-          QMF_ANALYSIS_FILTER_COEFFICIENTS[index]
-      }
-      polyphase[component] = sum
-    }
-
-    for (let band = 0; band < QMF_BANDS; band++) {
-      const coefficientOffset = band * QMF_BANDS
-      let sum = 0
-      for (let component = 0; component < QMF_BANDS; component++) {
-        sum +=
-          polyphase[component] *
-          QMF_ANALYSIS_MODULATION_COEFFICIENTS[coefficientOffset + component]
-      }
-      bands[band] = sum * QMF_ANALYSIS_MODULATION_SCALE
-      outputBands[band][sample] = bands[band]
-    }
+    outputBands[0][sample] = even + odd
+    outputBands[1][sample] = even - odd
   }
   return outputBands
 }
 
 /**
- * Fold caller-owned QMF subband rows through one circular synthesis delay.
+ * Reconstruct interleaved PCM using a circular polyphase delay line.
  *
  * @param {Float32Array[]} inputBands Chronological subband rows.
  * @param {Float32Array} delay Caller-owned component delay ring.
  * @param {i32} delayRow Current delay-ring row.
  * @param {Float32Array} output Caller-owned interleaved PCM output.
- * @param {QmfScratch} scratch Reusable component and modulation storage.
+ * @param {object} scratch Reusable QMF storage.
  * @returns {number} Next delay-ring row.
  * @nativeUnchecked Native callers supply frame-bounded buffers and indices.
  */
@@ -477,67 +88,23 @@ export function synthesizeQmf(inputBands, delay, delayRow, output, scratch) {
     throw new RangeError('QMF synthesis geometry is invalid')
   }
 
-  const { polyphase, bands } = scratch
-  const sampleCount = inputBands[0].length
+  for (let sample = 0; sample < inputBands[0].length; sample++) {
+    const low = inputBands[0][sample]
+    const high = inputBands[1][sample]
+    delay[delayRow * 2] = 0.5 * low + 0.5 * high
+    delay[delayRow * 2 + 1] = 0.5 * low - 0.5 * high
 
-  for (let sample = 0; sample < sampleCount; sample++) {
-    for (let band = 0; band < QMF_BANDS; band++) {
-      bands[band] = inputBands[band][sample]
+    let even = 0
+    let odd = 0
+    for (let term = 0; term < QMF_SYNTHESIS_TERMS; term++) {
+      const row =
+        (delayRow + QMF_SYNTHESIS_DELAY_ROWS - 1 - term) %
+        QMF_SYNTHESIS_DELAY_ROWS
+      even += delay[row * 2 + 1] * QMF_ODD[term]
+      odd += delay[row * 2] * QMF_EVEN[term]
     }
-
-    const delayOffset = delayRow * QMF_BANDS
-    for (let component = 0; component < QMF_BANDS; component++) {
-      const coefficientOffset = component * QMF_BANDS
-      let sum = 0
-      for (let band = 0; band < QMF_BANDS; band++) {
-        sum +=
-          QMF_SYNTHESIS_MODULATION_COEFFICIENTS[coefficientOffset + band] *
-          bands[band]
-      }
-      polyphase[component] = sum
-      delay[delayOffset + component] = polyphase[component]
-    }
-
-    const outputOffset = sample * QMF_BANDS
-    for (let outputSample = 0; outputSample < QMF_BANDS; outputSample++) {
-      const termOffset = outputSample * QMF_SYNTHESIS_TERMS
-      let sum = 0
-      if (QMF_BANDS === 16) {
-        for (let term = 0; term < QMF_SYNTHESIS_TERMS; term += 2) {
-          const first = termOffset + term
-          const second = first + 1
-          const firstRow =
-            (delayRow + QMF_SYNTHESIS_DELAY_ROW_OFFSETS[first]) %
-            QMF_SYNTHESIS_DELAY_ROWS
-          const secondRow =
-            (delayRow + QMF_SYNTHESIS_DELAY_ROW_OFFSETS[second]) %
-            QMF_SYNTHESIS_DELAY_ROWS
-          sum = Math.fround(
-            delay[
-              firstRow * QMF_BANDS + QMF_SYNTHESIS_DELAY_COMPONENTS[first]
-            ] *
-              QMF_SYNTHESIS_FILTER_COEFFICIENTS[first] +
-              delay[
-                secondRow * QMF_BANDS + QMF_SYNTHESIS_DELAY_COMPONENTS[second]
-              ] *
-                QMF_SYNTHESIS_FILTER_COEFFICIENTS[second] +
-              sum
-          )
-        }
-        output[outputOffset + outputSample] = sum
-        continue
-      }
-      for (let term = 0; term < QMF_SYNTHESIS_TERMS; term++) {
-        const index = termOffset + term
-        const row =
-          (delayRow + QMF_SYNTHESIS_DELAY_ROW_OFFSETS[index]) %
-          QMF_SYNTHESIS_DELAY_ROWS
-        sum +=
-          delay[row * QMF_BANDS + QMF_SYNTHESIS_DELAY_COMPONENTS[index]] *
-          QMF_SYNTHESIS_FILTER_COEFFICIENTS[index]
-      }
-      output[outputOffset + outputSample] = sum
-    }
+    output[sample * 2] = even
+    output[sample * 2 + 1] = odd
     delayRow = delayRow === 0 ? QMF_SYNTHESIS_DELAY_ROWS - 1 : delayRow - 1
   }
   return delayRow
