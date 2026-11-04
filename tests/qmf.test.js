@@ -42,6 +42,19 @@ function synthesisState() {
 describe('QMF Analysis and Synthesis', () => {
   const bufferPool = new BufferPool()
 
+  it('stores unscaled synthesis sum and difference', () => {
+    const state = synthesisState()
+    synthesizeQmf(
+      [new Float32Array([0.75]), new Float32Array([0.25])],
+      state.delay,
+      state.delayRow,
+      new Float32Array(2),
+      bufferPool.qmfScratch
+    )
+    expect(state.delay[0]).toBe(1)
+    expect(state.delay[1]).toBe(0.5)
+  })
+
   it('should achieve perfect reconstruction', () => {
     const signal = TEST_SIGNALS.sine(440, 44100, 512)
     const delay = new Float32Array(QMF_ANALYSIS_DELAY_SAMPLES)
@@ -52,14 +65,15 @@ describe('QMF Analysis and Synthesis', () => {
       bufferPool.qmfScratch
     )
 
-    // The reconstruction is not bit-perfect due to floating point errors and filter delay.
-    // We check that the energy is preserved and the error is small.
+    // Unscaled synthesis gives this one-stage roundtrip a gain of 2.
+    // Normalize only for comparison with the input.
     const signalEnergy = signal.reduce((acc, val) => acc + val * val, 0)
     // The output is delayed by the analysis look-back.
     const errorEnergy = output.reduce((acc, val, i) => {
       const originalIndex = i - QMF_ANALYSIS_DELAY_SAMPLES
       if (originalIndex < 0 || originalIndex >= signal.length) return acc
-      return acc + (val - signal[originalIndex]) * (val - signal[originalIndex])
+      const error = val * 0.5 - signal[originalIndex]
+      return acc + error * error
     }, 0)
 
     expect(errorEnergy / signalEnergy).toBeLessThan(1e-6)
@@ -134,7 +148,8 @@ describe('QMF Analysis and Synthesis', () => {
     const errorEnergy = output.reduce((acc, val, i) => {
       const originalIndex = i - QMF_ANALYSIS_DELAY_SAMPLES
       if (originalIndex < 0 || originalIndex >= signal.length) return acc
-      return acc + (val - signal[originalIndex]) * (val - signal[originalIndex])
+      const error = val * 0.5 - signal[originalIndex]
+      return acc + error * error
     }, 0)
 
     expect(errorEnergy / signalEnergy).toBeLessThan(1e-6)

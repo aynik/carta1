@@ -88,7 +88,8 @@ function search(
     bfuSizes,
     remainingBits,
     biasedScaleFactors,
-    allScaleFactorIndices
+    allScaleFactorIndices,
+    zeroBitDistortions
   )
   const distortion = measureDistortion(
     activeBfuCount,
@@ -136,9 +137,10 @@ function measureDistortion(
     }
 
     const sfi = scaleFactorIndices[i]
-    if (sfi === 0) continue
-
-    const effectiveScaleFactor = biasedScaleFactors[sfi]
+    const effectiveScaleFactor =
+      sfi === 0
+        ? zeroBitDistortions[i] / (2 * bfuSizes[i])
+        : biasedScaleFactors[sfi]
     const distortionFactor = INV_POWER_OF_TWO[bits]
 
     totalDistortion += effectiveScaleFactor * distortionFactor * bfuSizes[i]
@@ -160,6 +162,7 @@ function measureDistortion(
  * @param {i32} remainingBits
  * @param {Float64Array} biasedScaleFactors
  * @param {Int32Array} allScaleFactorIndices
+ * @param {Float32Array} zeroBitDistortions Nonzero for nonsilent BFUs.
  * @returns {object} Retained allocation decisions.
  * @nativeUnchecked Native callers supply frame-bounded buffers and indices.
  */
@@ -168,7 +171,8 @@ function distributeBits(
   bfuSizes,
   remainingBits,
   biasedScaleFactors,
-  allScaleFactorIndices
+  allScaleFactorIndices,
+  zeroBitDistortions
 ) {
   const wordLengths = new Int32Array(activeBfuCount)
 
@@ -181,13 +185,16 @@ function distributeBits(
     if (sz === 0) continue
 
     const sfi = allScaleFactorIndices[bfuIndex]
-    if (sfi === 0) continue
+    if (zeroBitDistortions[bfuIndex] === 0) continue
 
     const deltaBits = WORD_LENGTH_DELTA_BITS[0]
     if (deltaBits <= 0) continue
 
-    const distortionDelta =
-      biasedScaleFactors[sfi] * DISTORTION_DELTA_FACTORS[0]
+    const effectiveScaleFactor =
+      sfi === 0
+        ? zeroBitDistortions[bfuIndex] / (2 * sz)
+        : biasedScaleFactors[sfi]
+    const distortionDelta = effectiveScaleFactor * DISTORTION_DELTA_FACTORS[0]
 
     heapIndices[heapSize] = bfuIndex
     heapPriorities[heapSize] = distortionDelta / deltaBits
@@ -227,8 +234,10 @@ function distributeBits(
     const deltaBitsNext = WORD_LENGTH_DELTA_BITS[nxt]
     if (nxt < MAX_WORD_LENGTH_INDEX && deltaBitsNext > 0) {
       const sfi = allScaleFactorIndices[bfu]
+      const effectiveScaleFactor =
+        sfi === 0 ? zeroBitDistortions[bfu] / (2 * sz) : biasedScaleFactors[sfi]
       const distortionDelta =
-        biasedScaleFactors[sfi] * DISTORTION_DELTA_FACTORS[nxt]
+        effectiveScaleFactor * DISTORTION_DELTA_FACTORS[nxt]
       heapPriorities[0] = distortionDelta / deltaBitsNext
       siftDown(heapIndices, heapPriorities, 0, heapSize)
     } else {
@@ -308,10 +317,16 @@ export function solve(bfuData, bfuSizes, maxBfuCount, allocationBias) {
 
     const sfi = findScaleFactor(bfuData[i], sz)
     allScaleFactorIndices[i] = sfi
-    if (sfi > 0) {
-      const effectiveScaleFactor = biasedScaleFactors[sfi]
-      zeroBitDistortions[i] = effectiveScaleFactor * 2.0 * sz
+    // Index zero covers both silence and all values below the smallest scale.
+    // Use the actual peak there so tiny BFUs do not all receive equal priority.
+    let effectiveScaleFactor = biasedScaleFactors[sfi]
+    if (sfi === 0) {
+      let peak = 0
+      for (let j = 0; j < sz; j++)
+        peak = Math.max(peak, Math.abs(bfuData[i][j]))
+      effectiveScaleFactor = peak === 0 ? 0 : Math.pow(peak, allocationBias)
     }
+    zeroBitDistortions[i] = effectiveScaleFactor * 2.0 * sz
   }
 
   let bestResult = null

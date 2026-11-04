@@ -1,21 +1,49 @@
 import { describe, it, expect } from 'vitest'
 import { MDCT, IMDCT } from '../codec/signal/mdct'
 import { overlapAdd } from '../codec/synthesis/bands'
+import { BufferPool } from '../codec/state'
 
 describe('MDCT and IMDCT', () => {
   it('should have correct instance properties', () => {
     const mdct64 = new MDCT(64, 0.5)
     const mdct256 = new MDCT(256, 0.5)
     const mdct512 = new MDCT(512, 1)
-    const imdct64 = new IMDCT(64, 64 * 8)
-    const imdct256 = new IMDCT(256, 256 * 8)
-    const imdct512 = new IMDCT(512, 512 * 4)
+    const imdct64 = new IMDCT(64, 64)
+    const imdct256 = new IMDCT(256, 256)
+    const imdct512 = new IMDCT(512, 512)
     expect(mdct64.size).toBe(64)
     expect(mdct256.size).toBe(256)
     expect(mdct512.size).toBe(512)
     expect(imdct64.size).toBe(64)
     expect(imdct256.size).toBe(256)
     expect(imdct512.size).toBe(512)
+  })
+
+  it('uses the unnormalized IMDCT for every decoder transform size', () => {
+    const { mdctBuffers } = new BufferPool()
+    for (const coefficientCount of [32, 128, 256]) {
+      const size = coefficientCount * 2
+      const coefficients = new Float32Array(coefficientCount)
+      for (let i = 0; i < coefficientCount; i++) {
+        coefficients[i] = Math.sin(i * 0.371) + 0.3 * Math.cos(i * 0.113)
+      }
+      const output = new IMDCT(size, size).transform(coefficients, mdctBuffers)
+      let error = 0
+      let energy = 0
+      for (let t = 0; t < size; t++) {
+        let expected = 0
+        for (let k = 0; k < coefficientCount; k++) {
+          const angle =
+            (Math.PI / coefficientCount) *
+            (t + 0.5 + coefficientCount / 2) *
+            (k + 0.5)
+          expected += coefficients[k] * Math.cos(angle)
+        }
+        error += (output[t] - expected) ** 2
+        energy += expected ** 2
+      }
+      expect(Math.sqrt(error / energy)).toBeLessThan(1e-6)
+    }
   })
 
   describe('overlapAdd', () => {

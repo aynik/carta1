@@ -27,6 +27,25 @@ describe('Quantization', () => {
       }
     })
 
+    it('dequantizes a nonzero word length at scale-factor index zero', () => {
+      // Index 0 is 2^-21, not a silence marker; zero word length means silence.
+      const values = new Int32Array([-2, -1, 0, 1])
+      expect(Array.from(dequantize(values, 0, 2))).toEqual([
+        -(2 ** -20),
+        -(2 ** -21),
+        0,
+        2 ** -21,
+      ])
+      expect(Array.from(dequantize(values, 0, 0))).toEqual([0, 0, 0, 0])
+    })
+
+    it('quantizes representable values at scale-factor index zero', () => {
+      const scale = SCALE_FACTORS[0]
+      const coefficients = new Float32Array([-scale, 0, scale])
+      expect(Array.from(quantize(coefficients, 0, 2))).toEqual([-1, 0, 1])
+      expect(Array.from(quantize(coefficients, 0, 0))).toEqual([0, 0, 0])
+    })
+
     it('should handle zero input', () => {
       const coeffs = new Float32Array(4).fill(0)
       const quantized = quantize(coeffs, 10, 8)

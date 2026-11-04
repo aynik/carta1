@@ -107,6 +107,33 @@ describe('Decoder Pipeline', () => {
     expect(decoded).toBeDefined()
   })
 
+  it('dequantizes into normalized spectral units', () => {
+    const wordLengthIndices = new Int32Array(20)
+    wordLengthIndices[0] = 1 // 2-bit signed coefficients
+    wordLengthIndices[1] = 2 // 3-bit signed coefficients
+    const scaleFactorIndices = new Int32Array(20)
+    scaleFactorIndices[1] = 1
+    const quantizedCoefficients = Array.from(
+      { length: 20 },
+      () => new Int32Array(8)
+    )
+    quantizedCoefficients[0][0] = 1
+    quantizedCoefficients[0][1] = -1
+    quantizedCoefficients[1][0] = 1
+    const frame = {
+      nBfu: 20,
+      scaleFactorIndices,
+      wordLengthIndices,
+      quantizedCoefficients,
+      blockModes: [0, 0, 0],
+    }
+
+    const { coefficients } = dequantize()(frame)
+    expect(coefficients[0]).toBe(2 ** -21)
+    expect(coefficients[1]).toBe(-(2 ** -21))
+    expect(coefficients[8]).toBe(Math.fround(2 ** (1 / 3 - 21) / 3))
+  })
+
   it('should handle zero word length BFUs', () => {
     const decoder = decode()
     const encoded = {

@@ -1,7 +1,30 @@
 import { describe, it, expect } from 'vitest'
+import {
+  MAX_MDCT_SIZE,
+  MDCT_SHORT_BLOCK_SIZE,
+  MDCT_SIZE_LONG_HIGH,
+  MDCT_SIZE_LONG_LOW_MID,
+  MDCT_SIZE_SHORT,
+} from '../codec/core/constants'
 import * as tables from '../codec/core/tables'
 
 describe('Constants', () => {
+  it('defines short and band-specific long MDCT geometry', () => {
+    expect(MDCT_SIZE_SHORT).toBe(64)
+    expect(MDCT_SIZE_SHORT).toBe(MDCT_SHORT_BLOCK_SIZE * 2)
+    expect(MDCT_SIZE_LONG_LOW_MID).toBe(256)
+    expect(MDCT_SIZE_LONG_HIGH).toBe(512)
+    expect(MAX_MDCT_SIZE).toBe(MDCT_SIZE_LONG_HIGH)
+    expect(tables.MDCT_BAND_CONFIGS.map((band) => band.longMdctSize)).toEqual([
+      MDCT_SIZE_LONG_LOW_MID,
+      MDCT_SIZE_LONG_LOW_MID,
+      MDCT_SIZE_LONG_HIGH,
+    ])
+    for (const band of tables.MDCT_BAND_CONFIGS) {
+      expect(band.longMdctSize).toBe(band.size * 2)
+    }
+  })
+
   describe('SPECS_PER_BFU', () => {
     it('should sum to 512', () => {
       const sum = tables.SPECS_PER_BFU.reduce((a, b) => a + b, 0)

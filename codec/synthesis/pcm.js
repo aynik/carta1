@@ -2,6 +2,7 @@
  * Carta1 PCM synthesis application.
  */
 
+import { PCM16_NORM_GAIN } from '../core/constants.js'
 import { synthesizeQmf } from '../signal/qmf.js'
 import { throwError } from '../utils.js'
 
@@ -58,6 +59,9 @@ export function synthesizePcm(context) {
     const stage2 = synthesizePair([bands[0], bands[1]], states.midBand, scratch)
 
     const stage1 = synthesizePair([stage2, highBand], states.lowBand, scratch)
+    for (let i = 0; i < stage1.length; i++) {
+      stage1[i] *= PCM16_NORM_GAIN
+    }
 
     return stage1
   }

@@ -2,7 +2,12 @@
  * Stable ATRAC1 geometry, signal, allocation, and quantization tables.
  */
 
-import { MAX_WORD_LENGTH_INDEX, QMF_TAPS } from './constants.js'
+import {
+  MAX_WORD_LENGTH_INDEX,
+  MDCT_SIZE_LONG_HIGH,
+  MDCT_SIZE_LONG_LOW_MID,
+  QMF_TAPS,
+} from './constants.js'
 
 export const AEA_MAGIC = new Uint8Array([0x00, 0x08, 0x00, 0x00])
 
@@ -70,10 +75,26 @@ export const QMF_ODD = (() => {
   return odd
 })()
 
+// Band geometry and encoder-side analysis gains.
 export const MDCT_BAND_CONFIGS = [
-  { size: 128, windowStart: 48 },
-  { size: 128, windowStart: 48 },
-  { size: 256, windowStart: 112 },
+  {
+    size: 128,
+    longMdctSize: MDCT_SIZE_LONG_LOW_MID,
+    windowStart: 48,
+    analysisScale: 0.5,
+  },
+  {
+    size: 128,
+    longMdctSize: MDCT_SIZE_LONG_LOW_MID,
+    windowStart: 48,
+    analysisScale: 0.5,
+  },
+  {
+    size: 256,
+    longMdctSize: MDCT_SIZE_LONG_HIGH,
+    windowStart: 112,
+    analysisScale: 1,
+  },
 ]
 
 export const WORD_LENGTH_BITS = new Int32Array([

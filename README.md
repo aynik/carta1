@@ -1,7 +1,7 @@
 # Carta1
 
 Carta1 is an ATRAC1 encoder and decoder in JavaScript. It converts PCM WAVE
-audio to Sony's AEA container, decodes AEA back to PCM WAVE, exposes stateful
+audio to the AEA container, decodes AEA back to PCM WAVE, exposes stateful
 frame and stream APIs, and ships browser Web Worker bundles.
 
 ## Supported format

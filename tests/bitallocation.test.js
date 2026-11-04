@@ -44,6 +44,29 @@ describe('RDO Bit Allocation', () => {
     expect(allocation.every((bits) => bits === 0)).toBe(true)
   })
 
+  it('allocates bits to a nonzero BFU with scale-factor index zero', () => {
+    const bfuSizes = new Array(52).fill(8)
+    const bfuData = createMockBfuData(bfuSizes, 0)
+    bfuData[0].fill(SCALE_FACTORS[0] / 2)
+
+    const { allocation, scaleFactorIndices } = solve(bfuData, bfuSizes, 52, 1)
+
+    expect(scaleFactorIndices[0]).toBe(0)
+    expect(allocation[0]).toBeGreaterThan(0)
+    expect(allocation.slice(1).every((bits) => bits === 0)).toBe(true)
+  })
+
+  it('prioritizes the stronger BFU when scale-factor indices are both zero', () => {
+    const bfuSizes = new Array(52).fill(16)
+    const bfuData = createMockBfuData(bfuSizes, SCALE_FACTORS[0] / 1000)
+    bfuData[0].fill(SCALE_FACTORS[0] / 2)
+
+    const { allocation, scaleFactorIndices } = solve(bfuData, bfuSizes, 52, 1)
+
+    expect(scaleFactorIndices.every((index) => index === 0)).toBe(true)
+    expect(allocation[0]).toBeGreaterThan(Math.max(...allocation.slice(1)))
+  })
+
   it('should allocate more bits to BFUs with higher energy', () => {
     const bfuSizes = new Array(52).fill(10)
     const bfuData = []

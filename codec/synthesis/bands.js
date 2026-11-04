@@ -3,9 +3,8 @@
  */
 
 import {
+  MAX_MDCT_SIZE,
   MDCT_SHORT_BLOCK_SIZE,
-  MDCT_SIZE_LONG,
-  MDCT_SIZE_MID,
   MDCT_SIZE_SHORT,
   MDCT_TAIL_WINDOW_SIZE,
 } from '../core/constants.js'
@@ -15,9 +14,10 @@ import { IMDCT } from '../signal/mdct.js'
 import { reverseSpectrum } from '../signal/order.js'
 import { throwError } from '../utils.js'
 
-const shortImdct = new IMDCT(MDCT_SIZE_SHORT, MDCT_SIZE_SHORT * 8)
-const middleImdct = new IMDCT(MDCT_SIZE_MID, MDCT_SIZE_MID * 8)
-const longImdct = new IMDCT(MDCT_SIZE_LONG, MDCT_SIZE_LONG * 4)
+const shortImdct = new IMDCT(MDCT_SIZE_SHORT, MDCT_SIZE_SHORT)
+const longImdcts = MDCT_BAND_CONFIGS.map(
+  ({ longMdctSize }) => new IMDCT(longMdctSize, longMdctSize)
+)
 
 /**
  * Combine adjacent inverse-transform blocks through the codec window.
@@ -54,7 +54,6 @@ export function synthesizeSpectrum(context) {
     context?.bufferPool ??
     throwError('synthesizeSpectrum: bufferPool is required')
   const overlapBuffers = bufferPool.imdctOverlap
-  const transformFunctions = [middleImdct, middleImdct, longImdct]
 
   /**
    * @param {Float32Array} coefficients
@@ -77,7 +76,7 @@ export function synthesizeSpectrum(context) {
         bandIndex,
         overlapBuffer,
         config,
-        transformFunctions[bandIndex]
+        longImdcts[bandIndex]
       )
     }
 
@@ -109,7 +108,7 @@ export function synthesizeSpectrum(context) {
       bufferPool.mdctBuffers
     )
     const inverseStart = inverse.length / 4
-    const inverseBuffer = bufferPool.transformBuffers[MDCT_SIZE_LONG]
+    const inverseBuffer = bufferPool.transformBuffers[MAX_MDCT_SIZE]
     inverseBuffer.fill(0)
 
     for (let i = 0; i < config.size; i++) {
@@ -153,7 +152,7 @@ export function synthesizeSpectrum(context) {
    */
   function inverseShortBlocks(coefficients, bandIndex, overlapBuffer, config) {
     const numBlocks = 1 << (config.size === 256 ? 3 : 2)
-    const inverseBuffer = bufferPool.transformBuffers[MDCT_SIZE_LONG]
+    const inverseBuffer = bufferPool.transformBuffers[MAX_MDCT_SIZE]
     inverseBuffer.fill(0)
 
     const previous = overlapBuffer.slice(

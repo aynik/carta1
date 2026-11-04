@@ -2,6 +2,9 @@
  * Carta1 scalar format constants.
  */
 
+export const PCM16_FULL_SCALE = 32768
+export const PCM16_NORM_GAIN = 2
+
 export const SAMPLE_RATE = 44100
 export const SAMPLES_PER_FRAME = 512
 export const FRAME_RATE = SAMPLE_RATE / SAMPLES_PER_FRAME
@@ -28,8 +31,9 @@ export const BITS_PER_BFU_METADATA = 10
 export const BFU_AMOUNTS_COUNT = 8
 
 export const MDCT_SIZE_SHORT = 64
-export const MDCT_SIZE_MID = 256
-export const MDCT_SIZE_LONG = 512
+export const MDCT_SIZE_LONG_LOW_MID = 256
+export const MDCT_SIZE_LONG_HIGH = 512
+export const MAX_MDCT_SIZE = MDCT_SIZE_LONG_HIGH
 export const MDCT_SHORT_BLOCK_SIZE = 32
 export const MDCT_OVERLAP_SIZE = 32
 export const MDCT_TAIL_WINDOW_SIZE = 16

@@ -23,7 +23,7 @@ import { SCALE_FACTORS } from '../core/tables.js'
 export function quantize(coefficients, scaleFactorIndex, bitsPerSample) {
   const length = coefficients.length
   const out = new Int32Array(length)
-  if (bitsPerSample === 0 || scaleFactorIndex === 0) {
+  if (bitsPerSample === 0) {
     out.fill(0, 0, length)
     return out
   }
@@ -52,7 +52,7 @@ export function quantize(coefficients, scaleFactorIndex, bitsPerSample) {
  * @returns {Float32Array}
  */
 export function dequantize(quantized, scaleFactorIndex, bitsPerSample) {
-  if (bitsPerSample === 0 || scaleFactorIndex === 0) {
+  if (bitsPerSample === 0) {
     return new Float32Array(quantized.length)
   }
 

@@ -91,8 +91,8 @@ export function synthesizeQmf(inputBands, delay, delayRow, output, scratch) {
   for (let sample = 0; sample < inputBands[0].length; sample++) {
     const low = inputBands[0][sample]
     const high = inputBands[1][sample]
-    delay[delayRow * 2] = 0.5 * low + 0.5 * high
-    delay[delayRow * 2 + 1] = 0.5 * low - 0.5 * high
+    delay[delayRow * 2] = low + high
+    delay[delayRow * 2 + 1] = low - high
 
     let even = 0
     let odd = 0

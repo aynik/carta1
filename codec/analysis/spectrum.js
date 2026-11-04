@@ -5,8 +5,6 @@
 import {
   MDCT_OVERLAP_SIZE,
   MDCT_SHORT_BLOCK_SIZE,
-  MDCT_SIZE_LONG,
-  MDCT_SIZE_MID,
   MDCT_SIZE_SHORT,
 } from '../core/constants.js'
 import { calculateBandOffset } from '../core/geometry.js'
@@ -15,9 +13,12 @@ import { MDCT } from '../signal/mdct.js'
 import { reverseSpectrum } from '../signal/order.js'
 import { throwError } from '../utils.js'
 
-const shortMdct = new MDCT(MDCT_SIZE_SHORT, 0.5)
-const middleMdct = new MDCT(MDCT_SIZE_MID, 0.5)
-const longMdct = new MDCT(MDCT_SIZE_LONG, 1)
+const shortMdcts = MDCT_BAND_CONFIGS.map(
+  ({ analysisScale }) => new MDCT(MDCT_SIZE_SHORT, analysisScale)
+)
+const longMdcts = MDCT_BAND_CONFIGS.map(
+  ({ longMdctSize, analysisScale }) => new MDCT(longMdctSize, analysisScale)
+)
 
 /**
  * Build the ATRAC1 spectrum from analyzed bands.
@@ -31,7 +32,6 @@ export function transformSpectrum(context) {
     context?.bufferPool ??
     throwError('transformSpectrum: bufferPool is required')
   const overlapBuffers = bufferPool.mdctOverlap
-  const transformFunctions = [middleMdct, middleMdct, longMdct]
 
   /**
    * @param {Float32Array} samples
@@ -48,7 +48,7 @@ export function transformSpectrum(context) {
         samples,
         bandIndex,
         config,
-        transformFunctions[bandIndex],
+        longMdcts[bandIndex],
         overlapBuffer
       )
     }
@@ -71,8 +71,7 @@ export function transformSpectrum(context) {
     transformFunction,
     overlapBuffer
   ) {
-    const mdctSize = bandIndex === 2 ? MDCT_SIZE_LONG : MDCT_SIZE_MID
-    const mdctInput = bufferPool.transformBuffers[mdctSize]
+    const mdctInput = bufferPool.transformBuffers[transformFunction.size]
     mdctInput.fill(0)
     mdctInput.set(overlapBuffer, config.windowStart)
 
@@ -113,7 +112,10 @@ export function transformSpectrum(context) {
       applyTailWindowing(blockSamples, overlapBuffer, MDCT_SHORT_BLOCK_SIZE)
       mdctInput.set(blockSamples, MDCT_OVERLAP_SIZE)
 
-      let spectrum = shortMdct.transform(mdctInput, bufferPool.mdctBuffers)
+      let spectrum = shortMdcts[bandIndex].transform(
+        mdctInput,
+        bufferPool.mdctBuffers
+      )
       if (bandIndex > 0) {
         spectrum = reverseSpectrum(spectrum, bufferPool.reversalBuffers)
       }
