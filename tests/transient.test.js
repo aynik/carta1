@@ -1,9 +1,60 @@
 import { describe, it, expect } from 'vitest'
-import { performFFT, detectTransient } from '../codec/analysis/blocks'
+import {
+  performFFT,
+  detectTransient,
+  selectBlocks,
+} from '../codec/analysis/blocks'
 import { TEST_SIGNALS } from './testSignals'
 import { SAMPLES_PER_FRAME } from '../codec/core/constants'
 
 describe('Transient Detection', () => {
+  describe('selectBlocks', () => {
+    const createInput = () => {
+      const bands = [128, 128, 256].map((size) => {
+        const samples = new Float32Array(size)
+        samples[0] = 1
+        return samples
+      })
+      const bufferPool = {
+        transientDetection: [64, 64, 128].map((size) => new Float32Array(size)),
+      }
+      return { bands, bufferPool }
+    }
+
+    it.each([
+      [
+        [0.01, 100, 100],
+        [2, 0, 0],
+      ],
+      [
+        [100, 0.01, 100],
+        [0, 2, 0],
+      ],
+      [
+        [100, 100, 0.01],
+        [0, 0, 3],
+      ],
+    ])('uses the corresponding band thresholds %j', (thresholds, expected) => {
+      const { bands, bufferPool } = createInput()
+      const options = {
+        transientThresholdLow: thresholds[0],
+        transientThresholdMid: thresholds[1],
+        transientThresholdHigh: thresholds[2],
+      }
+      expect(
+        selectBlocks({ bufferPool, options })({ bands }).blockModes
+      ).toEqual(expected)
+    })
+
+    it('preserves fixed block modes', () => {
+      const { bands, bufferPool } = createInput()
+      const options = { fixedBlockModes: [0, 2, 3] }
+      expect(
+        selectBlocks({ bufferPool, options })({ bands }).blockModes
+      ).toEqual(options.fixedBlockModes)
+    })
+  })
+
   describe('performFFT', () => {
     it('should return a correct magnitude spectrum', () => {
       const size = 256

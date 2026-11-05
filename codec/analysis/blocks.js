@@ -255,12 +255,17 @@ export function selectBlocks(context) {
     if (options.fixedBlockModes) {
       blockModes = options.fixedBlockModes
     } else {
+      const thresholds = [
+        options.transientThresholdLow,
+        options.transientThresholdMid,
+        options.transientThresholdHigh,
+      ]
       blockModes = bands.map((bandSamples, bandIndex) => {
         const coeffs = performFFT(bandSamples, fftSizes[bandIndex])
         const transient = detectTransient(
           coeffs,
           bufferPool.transientDetection[bandIndex],
-          options.transientThresholdLow
+          thresholds[bandIndex]
         )
         bufferPool.transientDetection[bandIndex] = coeffs
         return transient * Math.max(bandIndex + 1, 2)
