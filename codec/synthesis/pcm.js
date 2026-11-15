@@ -36,8 +36,9 @@ function synthesizePair(bands, state, scratch) {
 export function synthesizePcm(context) {
   const bufferPool =
     context?.bufferPool ?? throwError('synthesizePcm: bufferPool is required')
-  const states = bufferPool.qmfSynthesisStates
-  const scratch = bufferPool.qmfScratch
+  const state = bufferPool.decoder.state
+  const states = state.qmfSynthesisStates
+  const scratch = bufferPool.decoder.scratch.qmf
 
   /**
    * @param {Array<Float32Array>} bands
@@ -45,14 +46,14 @@ export function synthesizePcm(context) {
    */
   return (bands) => {
     const delayedHigh = scratch.highBandWindows[bands[2].length]
-    delayedHigh.set(bufferPool.qmfHighBandDelay)
-    delayedHigh.set(bands[2], bufferPool.qmfHighBandDelay.length)
+    delayedHigh.set(state.qmfHighBandDelay)
+    delayedHigh.set(bands[2], state.qmfHighBandDelay.length)
 
     const highBand = delayedHigh.slice(0, bands[0].length * 2)
-    bufferPool.qmfHighBandDelay.set(
+    state.qmfHighBandDelay.set(
       delayedHigh.subarray(
         bands[0].length * 2,
-        bands[0].length * 2 + bufferPool.qmfHighBandDelay.length
+        bands[0].length * 2 + state.qmfHighBandDelay.length
       )
     )
 

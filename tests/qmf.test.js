@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { analyzeQmf, synthesizeQmf } from '../codec/signal/qmf'
 import { TEST_SIGNALS } from './testSignals'
-import { BufferPool } from '../codec/state'
+import { BufferPool } from '../codec/state/storage'
 import {
   QMF_ANALYSIS_DELAY_SAMPLES,
   QMF_SYNTHESIS_DELAY_SAMPLES,
@@ -41,6 +41,7 @@ function synthesisState() {
 
 describe('QMF Analysis and Synthesis', () => {
   const bufferPool = new BufferPool()
+  const qmfScratch = bufferPool.encoder.scratch.qmf
 
   it('stores unscaled synthesis sum and difference', () => {
     const state = synthesisState()
@@ -49,7 +50,7 @@ describe('QMF Analysis and Synthesis', () => {
       state.delay,
       state.delayRow,
       new Float32Array(2),
-      bufferPool.qmfScratch
+      qmfScratch
     )
     expect(state.delay[0]).toBe(1)
     expect(state.delay[1]).toBe(0.5)
@@ -58,12 +59,8 @@ describe('QMF Analysis and Synthesis', () => {
   it('should achieve perfect reconstruction', () => {
     const signal = TEST_SIGNALS.sine(440, 44100, 512)
     const delay = new Float32Array(QMF_ANALYSIS_DELAY_SAMPLES)
-    const bands = analyzePair(signal, delay, bufferPool.qmfScratch)
-    const output = synthesizePair(
-      bands,
-      synthesisState(),
-      bufferPool.qmfScratch
-    )
+    const bands = analyzePair(signal, delay, qmfScratch)
+    const output = synthesizePair(bands, synthesisState(), qmfScratch)
 
     // Unscaled synthesis gives this one-stage roundtrip a gain of 2.
     // Normalize only for comparison with the input.
@@ -91,12 +88,12 @@ describe('QMF Analysis and Synthesis', () => {
     const lowBandForLow = analyzePair(
       lowSignal,
       new Float32Array(QMF_ANALYSIS_DELAY_SAMPLES),
-      bufferPool.qmfScratch
+      qmfScratch
     )[0]
     const highBandForHigh = analyzePair(
       highSignal,
       new Float32Array(QMF_ANALYSIS_DELAY_SAMPLES),
-      bufferPool.qmfScratch
+      qmfScratch
     )[1]
 
     const lowEnergy = lowBandForLow.reduce((acc, val) => acc + val * val, 0)
@@ -110,13 +107,9 @@ describe('QMF Analysis and Synthesis', () => {
     const bands = analyzePair(
       signal,
       new Float32Array(QMF_ANALYSIS_DELAY_SAMPLES),
-      bufferPool.qmfScratch
+      qmfScratch
     )
-    const output = synthesizePair(
-      bands,
-      synthesisState(),
-      bufferPool.qmfScratch
-    )
+    const output = synthesizePair(bands, synthesisState(), qmfScratch)
 
     // The peak of the impulse should be delayed by the analysis look-back.
     let maxVal = 0
@@ -136,13 +129,9 @@ describe('QMF Analysis and Synthesis', () => {
     const bands = analyzePair(
       signal,
       new Float32Array(QMF_ANALYSIS_DELAY_SAMPLES),
-      bufferPool.qmfScratch
+      qmfScratch
     )
-    const output = synthesizePair(
-      bands,
-      synthesisState(),
-      bufferPool.qmfScratch
-    )
+    const output = synthesizePair(bands, synthesisState(), qmfScratch)
 
     const signalEnergy = signal.reduce((acc, val) => acc + val * val, 0)
     const errorEnergy = output.reduce((acc, val, i) => {

@@ -15,7 +15,7 @@ import {
   FRAME_OVERHEAD_BITS,
 } from '../core/constants.js'
 import { BFU_AMOUNTS } from '../core/tables.js'
-import { SoundUnitAllocationScratch } from '../state.js'
+import { SoundUnitAllocationScratch } from '../state/encoder.js'
 import { buildPerceptualMask, buildPerceptualWeights } from './distortion.js'
 import {
   exchangePerceptualBits,

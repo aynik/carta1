@@ -31,7 +31,9 @@ export function transformSpectrum(context) {
   const bufferPool =
     context?.bufferPool ??
     throwError('transformSpectrum: bufferPool is required')
-  const overlapBuffers = bufferPool.mdctOverlap
+  const state = bufferPool.encoder.state
+  const scratch = bufferPool.encoder.scratch.mdct
+  const overlapBuffers = state.mdctOverlap
 
   /**
    * @param {Float32Array} samples
@@ -71,19 +73,16 @@ export function transformSpectrum(context) {
     transformFunction,
     overlapBuffer
   ) {
-    const mdctInput = bufferPool.transformBuffers[transformFunction.size]
+    const mdctInput = scratch.transformBuffers[transformFunction.size]
     mdctInput.fill(0)
     mdctInput.set(overlapBuffer, config.windowStart)
 
     applyTailWindowing(samples, overlapBuffer, config.size)
     mdctInput.set(samples, config.windowStart + MDCT_OVERLAP_SIZE)
 
-    let spectrum = transformFunction.transform(
-      mdctInput,
-      bufferPool.mdctBuffers
-    )
+    let spectrum = transformFunction.transform(mdctInput, scratch.fftBuffers)
     if (bandIndex > 0) {
-      spectrum = reverseSpectrum(spectrum, bufferPool.reversalBuffers)
+      spectrum = reverseSpectrum(spectrum, scratch.reversalBuffers)
     }
     return spectrum
   }
@@ -105,7 +104,7 @@ export function transformSpectrum(context) {
         blockStart,
         blockStart + MDCT_SHORT_BLOCK_SIZE
       )
-      const mdctInput = bufferPool.transformBuffers[MDCT_SIZE_SHORT]
+      const mdctInput = scratch.transformBuffers[MDCT_SIZE_SHORT]
       mdctInput.fill(0)
       mdctInput.set(overlapBuffer, 0)
 
@@ -114,10 +113,10 @@ export function transformSpectrum(context) {
 
       let spectrum = shortMdcts[bandIndex].transform(
         mdctInput,
-        bufferPool.mdctBuffers
+        scratch.fftBuffers
       )
       if (bandIndex > 0) {
-        spectrum = reverseSpectrum(spectrum, bufferPool.reversalBuffers)
+        spectrum = reverseSpectrum(spectrum, scratch.reversalBuffers)
       }
       output.set(spectrum, blockStart)
     }

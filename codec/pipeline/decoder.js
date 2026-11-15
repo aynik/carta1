@@ -6,7 +6,8 @@
  */
 
 import { dequantize } from '../dequantization.js'
-import { BufferPool } from '../state.js'
+import { initializeDecoderStream } from '../state/decoder.js'
+import { BufferPool } from '../state/storage.js'
 import { synthesize } from '../synthesis/stage.js'
 import { pipe } from '../utils.js'
 
@@ -17,6 +18,7 @@ import { pipe } from '../utils.js'
  * @returns {Function}
  */
 export function decode(bufferPool = new BufferPool()) {
+  initializeDecoderStream(bufferPool.decoder)
   const context = { bufferPool }
   return pipe(context, dequantize, synthesize)
 }

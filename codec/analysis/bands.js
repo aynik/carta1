@@ -40,8 +40,9 @@ function analyzePair(input, delay, scratch) {
 export function analyzeBands(context) {
   const bufferPool =
     context?.bufferPool ?? throwError('analyzeBands: bufferPool is required')
-  const delays = bufferPool.qmfAnalysisDelays
-  const scratch = bufferPool.qmfScratch
+  const state = bufferPool.encoder.state
+  const delays = state.qmfAnalysisDelays
+  const scratch = bufferPool.encoder.scratch.qmf
 
   /**
    * @param {Float32Array} pcmSamples
@@ -52,14 +53,14 @@ export function analyzeBands(context) {
     const stage2 = analyzePair(stage1[0], delays.midBand, scratch)
 
     const delayedHigh = scratch.highBandWindows[stage1[1].length]
-    delayedHigh.set(bufferPool.qmfHighBandDelay)
-    delayedHigh.set(stage1[1], bufferPool.qmfHighBandDelay.length)
+    delayedHigh.set(state.qmfHighBandDelay)
+    delayedHigh.set(stage1[1], state.qmfHighBandDelay.length)
 
     const highBand = delayedHigh.slice(0, stage1[1].length)
-    bufferPool.qmfHighBandDelay.set(
+    state.qmfHighBandDelay.set(
       delayedHigh.subarray(
         stage1[1].length,
-        stage1[1].length + bufferPool.qmfHighBandDelay.length
+        stage1[1].length + state.qmfHighBandDelay.length
       )
     )
 

@@ -9,7 +9,8 @@ import { allocate } from '../allocation/stage.js'
 import { analyze } from '../analysis/stage.js'
 import { EncoderOptions } from '../core/options.js'
 import { quantize } from '../quantization/stage.js'
-import { BufferPool } from '../state.js'
+import { initializeEncoderStream } from '../state/encoder.js'
+import { BufferPool } from '../state/storage.js'
 import { pipe } from '../utils.js'
 
 /**
@@ -23,6 +24,7 @@ export function encode(
   options = new EncoderOptions(),
   bufferPool = new BufferPool()
 ) {
+  initializeEncoderStream(bufferPool.encoder)
   const context = { options, bufferPool }
   return pipe(context, analyze, allocate, quantize)
 }

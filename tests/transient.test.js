@@ -6,6 +6,7 @@ import {
 } from '../codec/analysis/blocks'
 import { TEST_SIGNALS } from './testSignals'
 import { SAMPLES_PER_FRAME } from '../codec/core/constants'
+import { BufferPool } from '../codec/state/storage'
 
 describe('Transient Detection', () => {
   describe('selectBlocks', () => {
@@ -15,9 +16,7 @@ describe('Transient Detection', () => {
         samples[0] = 1
         return samples
       })
-      const bufferPool = {
-        transientDetection: [64, 64, 128].map((size) => new Float32Array(size)),
-      }
+      const bufferPool = new BufferPool()
       return { bands, bufferPool }
     }
 

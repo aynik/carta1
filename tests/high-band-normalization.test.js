@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { decodeAeaPcm, encodeAeaPcm } from '../codec/index'
-import { BufferPool } from '../codec/state'
+import { BufferPool } from '../codec/state/storage'
 import { synthesizeSpectrum } from '../codec/synthesis/bands'
 import {
   SAMPLES_PER_FRAME,

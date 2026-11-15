@@ -15,7 +15,7 @@ import { solve } from './solve.js'
 export function allocate(context) {
   const options =
     context?.options ?? throwError('allocate: options is required')
-  const scratch = context?.bufferPool?.allocationScratch ?? null
+  const scratch = context?.bufferPool?.encoder?.scratch?.allocation ?? null
 
   /**
    * @param {object} input

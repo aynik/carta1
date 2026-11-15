@@ -188,11 +188,19 @@ function calculateTransientScore(features) {
  * Perform FFT on time-domain samples and return magnitude spectrum
  * @param {Float32Array} samples - Time-domain samples
  * @param {i32} fftSize - FFT size (must be power of 2)
+ * @param {object|null} [scratch=null] - Optional reusable FFT work buffers
  * @returns {Float32Array} Magnitude spectrum (positive frequencies only)
  */
-export function performFFT(samples, fftSize) {
-  const real = new Float32Array(fftSize)
-  const imag = new Float32Array(fftSize)
+export function performFFT(samples, fftSize, scratch = null) {
+  const work = scratch?.fft?.[fftSize]
+  /** @type {Float32Array} */
+  const real = work ? work.real : new Float32Array(fftSize)
+  /** @type {Float32Array} */
+  const imag = work ? work.imaginary : new Float32Array(fftSize)
+  if (work) {
+    real.fill(0)
+    imag.fill(0)
+  }
 
   // Copy samples with zero-padding if necessary
   const copyLen = Math.min(samples.length, fftSize)
@@ -202,7 +210,8 @@ export function performFFT(samples, fftSize) {
   FFT.transform(real, imag)
 
   // Calculate magnitude spectrum for positive frequencies
-  const magnitude = new Float32Array(fftSize / 2)
+  /** @type {Float32Array} */
+  const magnitude = work ? work.magnitudes : new Float32Array(fftSize / 2)
   for (let i = 0; i < fftSize / 2; i++) {
     magnitude[i] = Math.sqrt(real[i] * real[i] + imag[i] * imag[i])
   }
@@ -242,6 +251,8 @@ export function selectBlocks(context) {
     context?.bufferPool ?? throwError('selectBlocks: bufferPool is required')
   const options =
     context?.options ?? throwError('selectBlocks: options is required')
+  const state = bufferPool.encoder.state
+  const scratch = bufferPool.encoder.scratch.transient
   const fftSizes = [FFT_SIZE_LOW, FFT_SIZE_MID, FFT_SIZE_HIGH]
 
   /**
@@ -261,13 +272,13 @@ export function selectBlocks(context) {
         options.transientThresholdHigh,
       ]
       blockModes = bands.map((bandSamples, bandIndex) => {
-        const coeffs = performFFT(bandSamples, fftSizes[bandIndex])
+        const magnitudes = performFFT(bandSamples, fftSizes[bandIndex], scratch)
         const transient = detectTransient(
-          coeffs,
-          bufferPool.transientDetection[bandIndex],
+          magnitudes,
+          state.transientDetection[bandIndex],
           thresholds[bandIndex]
         )
-        bufferPool.transientDetection[bandIndex] = coeffs
+        state.transientDetection[bandIndex].set(magnitudes)
         return transient * Math.max(bandIndex + 1, 2)
       })
     }

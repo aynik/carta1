@@ -53,7 +53,9 @@ export function synthesizeSpectrum(context) {
   const bufferPool =
     context?.bufferPool ??
     throwError('synthesizeSpectrum: bufferPool is required')
-  const overlapBuffers = bufferPool.imdctOverlap
+  const state = bufferPool.decoder.state
+  const scratch = bufferPool.decoder.scratch.mdct
+  const overlapBuffers = state.imdctOverlap
 
   /**
    * @param {Float32Array} coefficients
@@ -100,15 +102,15 @@ export function synthesizeSpectrum(context) {
   ) {
     let blockSpectrum = coefficients
     if (bandIndex > 0) {
-      blockSpectrum = reverseSpectrum(coefficients, bufferPool.reversalBuffers)
+      blockSpectrum = reverseSpectrum(coefficients, scratch.reversalBuffers)
     }
 
     const inverse = transformFunction.transform(
       blockSpectrum,
-      bufferPool.mdctBuffers
+      scratch.fftBuffers
     )
     const inverseStart = inverse.length / 4
-    const inverseBuffer = bufferPool.transformBuffers[MAX_MDCT_SIZE]
+    const inverseBuffer = scratch.transformBuffers[MAX_MDCT_SIZE]
     inverseBuffer.fill(0)
 
     for (let i = 0; i < config.size; i++) {
@@ -152,7 +154,7 @@ export function synthesizeSpectrum(context) {
    */
   function inverseShortBlocks(coefficients, bandIndex, overlapBuffer, config) {
     const numBlocks = 1 << (config.size === 256 ? 3 : 2)
-    const inverseBuffer = bufferPool.transformBuffers[MAX_MDCT_SIZE]
+    const inverseBuffer = scratch.transformBuffers[MAX_MDCT_SIZE]
     inverseBuffer.fill(0)
 
     const previous = overlapBuffer.slice(
@@ -168,16 +170,10 @@ export function synthesizeSpectrum(context) {
         position + MDCT_SHORT_BLOCK_SIZE
       )
       if (bandIndex > 0) {
-        blockSpectrum = reverseSpectrum(
-          blockSpectrum,
-          bufferPool.reversalBuffers
-        )
+        blockSpectrum = reverseSpectrum(blockSpectrum, scratch.reversalBuffers)
       }
 
-      const inverse = shortImdct.transform(
-        blockSpectrum,
-        bufferPool.mdctBuffers
-      )
+      const inverse = shortImdct.transform(blockSpectrum, scratch.fftBuffers)
       const inverseStart = inverse.length / 4
       for (let i = 0; i < MDCT_SHORT_BLOCK_SIZE; i++) {
         inverseBuffer[start + i] = inverse[inverseStart + i]

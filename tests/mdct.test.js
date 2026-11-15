@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { MDCT, IMDCT } from '../codec/signal/mdct'
 import { overlapAdd } from '../codec/synthesis/bands'
-import { BufferPool } from '../codec/state'
+import { BufferPool } from '../codec/state/storage'
 
 describe('MDCT and IMDCT', () => {
   it('should have correct instance properties', () => {
@@ -20,14 +20,14 @@ describe('MDCT and IMDCT', () => {
   })
 
   it('uses the unnormalized IMDCT for every decoder transform size', () => {
-    const { mdctBuffers } = new BufferPool()
+    const { fftBuffers } = new BufferPool().decoder.scratch.mdct
     for (const coefficientCount of [32, 128, 256]) {
       const size = coefficientCount * 2
       const coefficients = new Float32Array(coefficientCount)
       for (let i = 0; i < coefficientCount; i++) {
         coefficients[i] = Math.sin(i * 0.371) + 0.3 * Math.cos(i * 0.113)
       }
-      const output = new IMDCT(size, size).transform(coefficients, mdctBuffers)
+      const output = new IMDCT(size, size).transform(coefficients, fftBuffers)
       let error = 0
       let energy = 0
       for (let t = 0; t < size; t++) {
