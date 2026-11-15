@@ -15,6 +15,7 @@ import { solve } from './solve.js'
 export function allocate(context) {
   const options =
     context?.options ?? throwError('allocate: options is required')
+  const scratch = context?.bufferPool?.allocationScratch ?? null
 
   /**
    * @param {object} input
@@ -22,8 +23,19 @@ export function allocate(context) {
    */
   return (input) => {
     const { coefficients, blockModes } = input
-    const { bfuData, bfuSizes, bfuCount } = prepare(coefficients, blockModes)
-    const result = solve(bfuData, bfuSizes, bfuCount, options.allocationBias)
+    const { bfuData, bfuSizes, bfuCount } = prepare(
+      coefficients,
+      blockModes,
+      scratch
+    )
+    const result = solve(
+      bfuData,
+      bfuSizes,
+      bfuCount,
+      options.allocationBias,
+      blockModes,
+      scratch
+    )
     const nBfu = result.bfuCount
 
     return {
@@ -31,7 +43,7 @@ export function allocate(context) {
       bfuSizes,
       nBfu,
       scaleFactorIndices: result.scaleFactorIndices.slice(0, nBfu),
-      wordLengthIndices: result.allocation.slice(0, nBfu),
+      wordLengthIndices: result.allocation,
       blockModes,
     }
   }

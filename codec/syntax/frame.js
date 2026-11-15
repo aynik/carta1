@@ -85,10 +85,9 @@ export function serializeFrame(frameData) {
     }
   }
 
-  // Zero padding at end
-  buffer[SOUND_UNIT_SIZE - 3] = 0
-  buffer[SOUND_UNIT_SIZE - 2] = 0
-  buffer[SOUND_UNIT_SIZE - 1] = 0
+  // Mirror 16-bit Sound-Unit header into final two trailer bytes
+  buffer[SOUND_UNIT_SIZE - 2] = buffer[0]
+  buffer[SOUND_UNIT_SIZE - 1] = buffer[1]
 
   return buffer
 }

@@ -22,7 +22,7 @@ export const STREAM_FLUSH_TAIL_FRAMES = 1
 
 export const SOUND_UNIT_SIZE = 212
 export const FRAME_BITS = SOUND_UNIT_SIZE * 8
-export const FRAME_OVERHEAD_BITS = 40
+export const FRAME_OVERHEAD_BITS = 32
 export const BITRATE_PER_CHANNEL = SOUND_UNIT_SIZE * FRAME_RATE * 8
 
 export const NUM_BFUS = 52
@@ -65,3 +65,15 @@ export const FRAME_SCALE_FACTOR_BITS = 6
 
 export const QUANTIZATION_SIGN_BIT_SHIFT = 1
 export const MAX_WORD_LENGTH_INDEX = 15
+
+export const NUM_WORD_LENGTHS = 16
+export const BFU_DISTORTION_CACHE_STRIDE = 16
+export const TUNE_BINARY_SEARCH_STEPS = 10
+export const PARETO_EXCHANGE_PASSES = 4
+export const MIN_SLACK_FILL_BITS = 4
+export const MASK_EXPONENT_LONG = 0.4
+export const MASK_EXPONENT_SHORT = 0.3
+export const MASK_RELATIVE_FLOOR = 1e-6
+export const MASK_MIN_FLOOR = 1e-30
+export const HEARING_THRESHOLD_ENERGY_GATE = 1e-9
+export const EAR_SENSITIVITY_FLOOR_DB = -9.0

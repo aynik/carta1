@@ -3,9 +3,13 @@
  */
 
 import {
+  EAR_SENSITIVITY_FLOOR_DB,
+  MAX_BFU_SIZE,
   MAX_WORD_LENGTH_INDEX,
   MDCT_SIZE_LONG_HIGH,
   MDCT_SIZE_LONG_LOW_MID,
+  NUM_BFUS,
+  NUM_WORD_LENGTHS,
   QMF_TAPS,
 } from './constants.js'
 
@@ -109,30 +113,97 @@ export const SCALE_FACTORS = (() => {
   return table
 })()
 
-export const INV_POWER_OF_TWO = (() => {
-  const maxBits = WORD_LENGTH_BITS[MAX_WORD_LENGTH_INDEX]
-  const table = new Float64Array(maxBits + 1)
-  for (let bits = 0; bits <= maxBits; bits++) {
-    table[bits] = Math.pow(2, -bits)
+/** Simultaneous upward masking spread across adjacent perceptual units. */
+export const SPREAD_UP = new Float64Array([
+  1.0, 0.03162277660168379, 0.001, 0.00003162277660168379,
+])
+
+/** Simultaneous downward masking spread across adjacent perceptual units. */
+export const SPREAD_DOWN = new Float64Array([
+  1.0, 0.005011872336272725, 0.000019952623149688796,
+])
+
+/** Maximum signed quantizer code per word-length index. */
+export const QUANTIZER_RANGES = (() => {
+  const table = new Int32Array(NUM_WORD_LENGTHS)
+  for (let wordLength = 1; wordLength <= MAX_WORD_LENGTH_INDEX; wordLength++) {
+    const bits = WORD_LENGTH_BITS[wordLength]
+    table[wordLength] = (1 << (bits - 1)) - 1
   }
   return table
 })()
 
-export const WORD_LENGTH_DELTA_BITS = (() => {
-  const table = new Int32Array(MAX_WORD_LENGTH_INDEX)
-  for (let i = 0; i < MAX_WORD_LENGTH_INDEX; i++) {
-    table[i] = (WORD_LENGTH_BITS[i + 1] - WORD_LENGTH_BITS[i]) | 0
+/** Outer-bin peak ratio where lowering scale-factor index by 1 reduces MSE. */
+export const SCALE_FACTOR_TRIM_RATIOS = (() => {
+  const table = new Float64Array(NUM_WORD_LENGTHS)
+  for (let wordLength = 1; wordLength <= MAX_WORD_LENGTH_INDEX; wordLength++) {
+    const quantizerRange = QUANTIZER_RANGES[wordLength]
+    table[wordLength] = (2.0 * quantizerRange) / (2.0 * quantizerRange + 1.0)
   }
   return table
 })()
 
-export const DISTORTION_DELTA_FACTORS = (() => {
-  const table = new Float64Array(MAX_WORD_LENGTH_INDEX)
-  table[0] = 2.0 - INV_POWER_OF_TWO[WORD_LENGTH_BITS[1]]
-  for (let i = 1; i < MAX_WORD_LENGTH_INDEX; i++) {
-    const bits1 = WORD_LENGTH_BITS[i] | 0
-    const bits2 = WORD_LENGTH_BITS[i + 1] | 0
-    table[i] = INV_POWER_OF_TWO[bits1] - INV_POWER_OF_TWO[bits2]
+/** Reciprocal natural log of BFU spectral width for tonality normalization. */
+export const INVERSE_LOG_BFU_SIZES = (() => {
+  const table = new Float64Array(MAX_BFU_SIZE + 1)
+  for (let size = 2; size <= MAX_BFU_SIZE; size++) {
+    table[size] = 1.0 / Math.log(size)
+  }
+  return table
+})()
+
+/** Bounded outer/middle-ear sensitivity weights for long-block BFUs. */
+export const EAR_WEIGHT_LONG = (() => {
+  const table = new Float64Array(NUM_BFUS)
+  for (let unit = 0; unit < NUM_BFUS; unit++) {
+    const centerBin = BFU_START_LONG[unit] + SPECS_PER_BFU[unit] * 0.5
+    const frequencyKhz = Math.max(0.05, (centerBin / 512.0) * 22.05)
+    const weightDb = Math.max(
+      EAR_SENSITIVITY_FLOOR_DB,
+      -0.6 * 3.64 * Math.pow(frequencyKhz, -0.8) +
+        6.5 * Math.exp(-0.6 * (frequencyKhz - 3.3) * (frequencyKhz - 3.3)) -
+        1e-3 * Math.pow(frequencyKhz, 3.6)
+    )
+    table[unit] = Math.pow(10.0, weightDb / 10.0)
+  }
+  return table
+})()
+
+/** Bounded outer/middle-ear sensitivity weights for short-block BFUs. */
+export const EAR_WEIGHT_SHORT = (() => {
+  const table = new Float64Array(NUM_BFUS)
+  const lowOffsets = new Int32Array([0, 8, 12, 20, 26])
+  const midOffsets = new Int32Array([0, 6, 13, 22])
+  const highOffsets = new Int32Array([0, 12])
+  for (let unit = 0; unit < NUM_BFUS; unit++) {
+    let frequencyKhz = 0.05
+    if (unit < 20) {
+      const frequencyGroup = unit >> 2
+      frequencyKhz = Math.max(
+        0.05,
+        ((lowOffsets[frequencyGroup] + SPECS_PER_BFU[unit] * 0.5) / 32.0) *
+          5.5125
+      )
+    } else if (unit < 36) {
+      const frequencyGroup = (unit - 20) >> 2
+      frequencyKhz =
+        5.5125 +
+        ((midOffsets[frequencyGroup] + SPECS_PER_BFU[unit] * 0.5) / 32.0) *
+          5.5125
+    } else {
+      const frequencyGroup = (unit - 36) >> 3
+      frequencyKhz =
+        11.025 +
+        ((highOffsets[frequencyGroup] + SPECS_PER_BFU[unit] * 0.5) / 32.0) *
+          11.025
+    }
+    const weightDb = Math.max(
+      EAR_SENSITIVITY_FLOOR_DB,
+      -0.6 * 3.64 * Math.pow(frequencyKhz, -0.8) +
+        6.5 * Math.exp(-0.6 * (frequencyKhz - 3.3) * (frequencyKhz - 3.3)) -
+        1e-3 * Math.pow(frequencyKhz, 3.6)
+    )
+    table[unit] = Math.pow(10.0, weightDb / 10.0)
   }
   return table
 })()

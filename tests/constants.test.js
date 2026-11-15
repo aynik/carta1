@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
+  FRAME_BITS,
+  FRAME_OVERHEAD_BITS,
   MAX_MDCT_SIZE,
   MDCT_SHORT_BLOCK_SIZE,
   MDCT_SIZE_LONG_HIGH,
@@ -9,6 +11,11 @@ import {
 import * as tables from '../codec/core/tables'
 
 describe('Constants', () => {
+  it('defines Sound-Unit header plus trailer overhead accurately', () => {
+    expect(FRAME_OVERHEAD_BITS).toBe(32)
+    expect(FRAME_BITS - FRAME_OVERHEAD_BITS).toBe(1664)
+  })
+
   it('defines short and band-specific long MDCT geometry', () => {
     expect(MDCT_SIZE_SHORT).toBe(64)
     expect(MDCT_SIZE_SHORT).toBe(MDCT_SHORT_BLOCK_SIZE * 2)

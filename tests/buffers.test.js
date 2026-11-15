@@ -73,6 +73,11 @@ describe('BufferPool', () => {
     expect(pool.reversalBuffers[32].length).toBe(32)
     expect(pool.reversalBuffers[128].length).toBe(128)
     expect(pool.reversalBuffers[256].length).toBe(256)
+
+    // Bit-allocation scratch
+    expect(pool.allocationScratch.bfuData.length).toBe(52)
+    expect(pool.allocationScratch.energies.length).toBe(52)
+    expect(pool.allocationScratch.distortionCache.length).toBe(52 * 16)
   })
 
   it('should have all buffers zero-initialized', () => {
@@ -88,5 +93,7 @@ describe('BufferPool', () => {
     checkZero(pool.mdctOverlap[0])
     checkZero(pool.imdctOverlap[0])
     checkZero(pool.reversalBuffers[32])
+    checkZero(pool.allocationScratch.energies)
+    checkZero(pool.allocationScratch.refinedScaleFactorIndices)
   })
 })

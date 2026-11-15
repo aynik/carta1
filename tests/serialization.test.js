@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { AeaFile, validateAeaTitle } from '../codec/boundary/container'
 import { deserializeFrame, serializeFrame } from '../codec/syntax/frame'
 import { SOUND_UNIT_SIZE, AEA_HEADER_SIZE } from '../codec/core/constants'
-import { AEA_MAGIC } from '../codec/core/tables'
+import { AEA_MAGIC, SPECS_PER_BFU } from '../codec/core/tables'
 
 describe('Serialization', () => {
   const createMockFrameData = () => ({
@@ -46,6 +46,37 @@ describe('Serialization', () => {
     it('should reject a frame with an invalid size', () => {
       const invalidBuffer = new Uint8Array(100)
       expect(() => deserializeFrame(invalidBuffer)).toThrow()
+    })
+
+    it('mirrors header in final two bytes and preserves payload byte 209', () => {
+      const wordLengthIndices = new Int32Array(52).fill(1)
+      wordLengthIndices[44] = 3
+      wordLengthIndices[45] = 3
+      wordLengthIndices[46] = 3
+
+      const quantizedCoefficients = Array.from(SPECS_PER_BFU, (size, index) => {
+        const arr = new Int32Array(size)
+        arr.fill(index === 51 ? -1 : 1)
+        return arr
+      })
+
+      const frameData = {
+        nBfu: 52,
+        blockModes: [0, 0, 0],
+        scaleFactorIndices: new Int32Array(52).fill(15),
+        wordLengthIndices,
+        quantizedCoefficients,
+      }
+
+      const buffer = serializeFrame(frameData)
+      expect(buffer[SOUND_UNIT_SIZE - 3]).not.toBe(0)
+      expect(buffer[SOUND_UNIT_SIZE - 2]).toBe(buffer[0])
+      expect(buffer[SOUND_UNIT_SIZE - 1]).toBe(buffer[1])
+
+      const deserialized = deserializeFrame(buffer)
+      expect(Array.from(deserialized.quantizedCoefficients[51])).toEqual(
+        Array.from(quantizedCoefficients[51])
+      )
     })
   })
 

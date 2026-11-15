@@ -10,48 +10,69 @@ import {
 } from '../core/tables.js'
 
 /**
+ * @typedef {object} SoundUnitAllocationSourceScratch
+ * @property {Array<Float32Array>} bfuData
+ * @property {Array<number>} bfuSizes
+ */
+
+/**
  * Group spectral coefficients into block floating units.
  *
  * @param {Float32Array} coefficients
  * @param {Array<number>} blockModes
+ * @param {SoundUnitAllocationSourceScratch} [scratch]
  * @returns {object} Grouped bit-frequency units.
  */
-export function groupIntoBFUs(coefficients, blockModes) {
-  const bfuData = []
-  const bfuSizes = []
-  let coeffIndex = 0
+export function groupIntoBFUs(coefficients, blockModes, scratch = null) {
+  /** @type {Array<Float32Array>} */
+  const bfuData = scratch ? scratch.bfuData : []
+  /** @type {Array<number>} */
+  const bfuSizes = scratch ? scratch.bfuSizes : []
+  let coefficientOffset = 0
   let bfuIndex = 0
 
   for (let band = 0; band < 3; band++) {
-    const bandStart = coeffIndex
+    const bandStart = coefficientOffset
     const bandSize = band === 2 ? 256 : 128
     const bandEnd = band < 2 ? BFU_BAND_BOUNDARIES[band] : SPECS_PER_BFU.length
+    /** @type {Int32Array} */
     const startPositions =
       blockModes[band] === 0 ? BFU_START_LONG : BFU_START_SHORT
 
     while (bfuIndex < bandEnd) {
       const size = SPECS_PER_BFU[bfuIndex]
-      const startPos = startPositions[bfuIndex] - bandStart
-      const endPos = startPos + size
-      const bfu = new Float32Array(size)
+      const startOffset = startPositions[bfuIndex] - bandStart
+      const endOffset = startOffset + size
+      /** @type {Float32Array} */
+      const bfu = scratch ? bfuData[bfuIndex] : new Float32Array(size)
 
-      if (startPos >= 0 && endPos <= bandSize) {
-        bfu.set(coefficients.subarray(bandStart + startPos, bandStart + endPos))
-      } else if (startPos < bandSize && endPos > 0) {
-        const srcStart = Math.max(0, startPos)
-        const srcEnd = Math.min(bandSize, endPos)
-        bfu.set(
-          coefficients.subarray(bandStart + srcStart, bandStart + srcEnd),
-          Math.max(0, -startPos)
-        )
+      if (startOffset >= 0 && endOffset <= bandSize) {
+        const sourceBase = bandStart + startOffset
+        for (let index = 0; index < size; index++) {
+          bfu[index] = coefficients[sourceBase + index]
+        }
+      } else if (startOffset < bandSize && endOffset > 0) {
+        bfu.fill(0)
+        const sourceStart = Math.max(0, startOffset)
+        const sourceEnd = Math.min(bandSize, endOffset)
+        const destinationOffset = Math.max(0, -startOffset)
+        const count = sourceEnd - sourceStart
+        for (let index = 0; index < count; index++) {
+          bfu[destinationOffset + index] =
+            coefficients[bandStart + sourceStart + index]
+        }
+      } else if (scratch) {
+        bfu.fill(0)
       }
 
-      bfuData.push(bfu)
-      bfuSizes.push(size)
+      if (!scratch) {
+        bfuData.push(bfu)
+        bfuSizes.push(size)
+      }
       bfuIndex++
     }
 
-    coeffIndex += bandSize
+    coefficientOffset += bandSize
   }
 
   return { bfuData, bfuSizes, bfuCount: bfuIndex }
@@ -62,8 +83,9 @@ export function groupIntoBFUs(coefficients, blockModes) {
  *
  * @param {Float32Array} coefficients
  * @param {Array<number>} blockModes
+ * @param {SoundUnitAllocationSourceScratch} [scratch]
  * @returns {object} Allocation source.
  */
-export function prepare(coefficients, blockModes) {
-  return groupIntoBFUs(coefficients, blockModes)
+export function prepare(coefficients, blockModes, scratch = null) {
+  return groupIntoBFUs(coefficients, blockModes, scratch)
 }

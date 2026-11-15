@@ -3,11 +3,14 @@
  */
 
 import {
+  BFU_DISTORTION_CACHE_STRIDE,
+  NUM_BFUS,
   QMF_ANALYSIS_DELAY_SAMPLES,
   QMF_BANDS,
   QMF_HIGH_BAND_DELAY,
   QMF_SYNTHESIS_DELAY_SAMPLES,
 } from './core/constants.js'
+import { SPECS_PER_BFU } from './core/tables.js'
 
 /** Persistent delay state for one two-band QMF synthesis stage. */
 class QmfSynthesisState {
@@ -53,10 +56,43 @@ class History {
 }
 
 /**
+ * Reusable per-stream scratch storage for Sound-Unit bit allocation.
+ */
+export class SoundUnitAllocationScratch {
+  constructor() {
+    /** @type {Array<Float32Array>} */
+    const bfuData = []
+    /** @type {Array<number>} */
+    const bfuSizes = []
+    for (let i = 0; i < NUM_BFUS; i++) {
+      const size = SPECS_PER_BFU[i]
+      bfuData.push(new Float32Array(size))
+      bfuSizes.push(size)
+    }
+    this.bfuData = bfuData
+    this.bfuSizes = bfuSizes
+    this.energies = new Float64Array(NUM_BFUS)
+    this.maxAmplitudes = new Float64Array(NUM_BFUS)
+    this.initialScaleFactorIndices = new Int32Array(NUM_BFUS)
+    this.maskThresholds = new Float64Array(NUM_BFUS)
+    this.perceptualWeights = new Float64Array(NUM_BFUS)
+    this.seedThresholds = new Float64Array(NUM_BFUS)
+    this.distortionCache = new Float64Array(
+      NUM_BFUS * BFU_DISTORTION_CACHE_STRIDE
+    )
+    this.candidateWordLengths = new Int32Array(NUM_BFUS)
+    this.selectedWordLengths = new Int32Array(NUM_BFUS)
+    this.refinedScaleFactorIndices = new Int32Array(NUM_BFUS)
+  }
+}
+
+/**
  * Reusable storage with no meaning between operations.
  */
 class Scratch {
   constructor() {
+    this.allocationScratch = new SoundUnitAllocationScratch()
+
     this.transformBuffers = {
       64: new Float32Array(64),
       128: new Float32Array(128),
